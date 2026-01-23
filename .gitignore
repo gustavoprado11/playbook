@@ -1,0 +1,13 @@
+# System Files
+._*
+.DS_Store
+
+# Node
+node_modules/
+.next/
+.env*.local
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
