@@ -18,11 +18,12 @@ async function getManagerStats() {
         .select('*', { count: 'exact', head: true })
         .eq('is_active', true);
 
-    // Get students count
+    // Get students count (exclude archived)
     const { count: studentsCount } = await supabase
         .from('students')
         .select('*', { count: 'exact', head: true })
-        .eq('status', 'active');
+        .eq('status', 'active')
+        .eq('is_archived', false);
 
     // Get snapshots for current month
     const { data: snapshots } = await supabase

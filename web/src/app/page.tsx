@@ -28,6 +28,7 @@ export default function HomePage() {
               width={80}
               height={80}
               className="object-contain"
+              unoptimized
               priority
             />
           </div>
@@ -229,6 +230,7 @@ export default function HomePage() {
               width={24}
               height={24}
               className="object-contain"
+              unoptimized
             />
             <span className="font-semibold text-zinc-900">Playbook</span>
           </div>

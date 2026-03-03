@@ -96,6 +96,7 @@ export function Sidebar({ role, userName }: SidebarProps) {
                         width={32}
                         height={32}
                         className="object-contain"
+                        unoptimized
                     />
                     <span className="text-lg font-semibold text-zinc-900">Playbook</span>
                 </div>

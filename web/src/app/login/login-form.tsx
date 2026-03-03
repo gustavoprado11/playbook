@@ -66,6 +66,7 @@ export function LoginForm() {
                             width={40}
                             height={40}
                             className="object-contain"
+                            unoptimized
                             priority
                         />
                     </div>

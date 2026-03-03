@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server';
+import { createServerClient } from '@supabase/ssr';
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function GET(request: NextRequest) {
@@ -7,19 +7,43 @@ export async function GET(request: NextRequest) {
     const token_hash = requestUrl.searchParams.get('token_hash');
     const type = requestUrl.searchParams.get('type');
 
-    const supabase = await createClient();
+    // Default redirect destination
+    let redirectTo = new URL('/login', requestUrl.origin);
 
-    // Handle code exchange (from OAuth or email confirmation)
+    // Create a response we can attach cookies to
+    // This is critical — using cookies() from next/headers + NextResponse.redirect()
+    // can lose the session cookies set during exchangeCodeForSession/verifyOtp
+    let response = NextResponse.redirect(redirectTo);
+
+    const supabase = createServerClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+        {
+            cookies: {
+                getAll() {
+                    return request.cookies.getAll();
+                },
+                setAll(cookiesToSet) {
+                    cookiesToSet.forEach(({ name, value, options }) => {
+                        response.cookies.set(name, value, options);
+                    });
+                },
+            },
+        }
+    );
+
+    // Handle code exchange (PKCE flow — from magic link or OAuth)
     if (code) {
         const { error } = await supabase.auth.exchangeCodeForSession(code);
 
         if (error) {
             console.error('Error exchanging code for session:', error);
-            return NextResponse.redirect(new URL('/login?error=auth_failed', requestUrl.origin));
+            response = NextResponse.redirect(new URL('/login?error=auth_failed', requestUrl.origin));
+            return response;
         }
     }
 
-    // Handle token hash verification (from magic link)
+    // Handle token hash verification (legacy magic link flow)
     if (token_hash && type) {
         const { error } = await supabase.auth.verifyOtp({
             token_hash,
@@ -28,7 +52,8 @@ export async function GET(request: NextRequest) {
 
         if (error) {
             console.error('Error verifying OTP:', error);
-            return NextResponse.redirect(new URL('/login?error=auth_failed', requestUrl.origin));
+            response = NextResponse.redirect(new URL('/login?error=auth_failed', requestUrl.origin));
+            return response;
         }
     }
 
@@ -36,8 +61,9 @@ export async function GET(request: NextRequest) {
     const { data: { user } } = await supabase.auth.getUser();
 
     if (!user) {
-        // No session found, redirect to login
-        return NextResponse.redirect(new URL('/login', requestUrl.origin));
+        console.error('Auth callback: no user found after exchange');
+        response = NextResponse.redirect(new URL('/login', requestUrl.origin));
+        return response;
     }
 
     // Get user profile to determine role
@@ -49,11 +75,18 @@ export async function GET(request: NextRequest) {
 
     // Redirect based on role
     if (profile?.role === 'manager') {
-        return NextResponse.redirect(new URL('/dashboard/manager', requestUrl.origin));
+        redirectTo = new URL('/dashboard/manager', requestUrl.origin);
     } else if (profile?.role === 'trainer') {
-        return NextResponse.redirect(new URL('/dashboard/trainer', requestUrl.origin));
+        redirectTo = new URL('/dashboard/trainer', requestUrl.origin);
+    } else {
+        redirectTo = new URL('/dashboard', requestUrl.origin);
     }
 
-    // Default fallback to generic dashboard
-    return NextResponse.redirect(new URL('/dashboard', requestUrl.origin));
+    // Create final redirect with all cookies preserved
+    const finalResponse = NextResponse.redirect(redirectTo);
+    response.cookies.getAll().forEach((cookie) => {
+        finalResponse.cookies.set(cookie.name, cookie.value);
+    });
+
+    return finalResponse;
 }

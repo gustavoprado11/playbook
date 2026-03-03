@@ -91,24 +91,31 @@ export async function createTrainer(formData: FormData) {
 
             userId = userData.user.id;
 
-            // Create profile using admin client (bypasses RLS)
-            const { error: profileError } = await adminClient
+            // Profile is created automatically by the database trigger (handle_new_user)
+            // Just verify it exists and has the correct role
+            const { data: createdProfile } = await adminClient
                 .from('profiles')
-                .insert({
-                    id: userId,
-                    email,
-                    full_name,
-                    role: 'trainer',
-                });
+                .select('id, role')
+                .eq('id', userId)
+                .single();
 
-            if (profileError) {
-                console.error('Error creating profile:', profileError);
-                // Clean up the auth user
-                await adminClient.auth.admin.deleteUser(userId);
-                return { error: 'Erro ao criar perfil do treinador. Tente novamente.' };
+            if (!createdProfile) {
+                // Trigger didn't fire — create profile manually as fallback
+                const { error: profileError } = await adminClient
+                    .from('profiles')
+                    .upsert({
+                        id: userId,
+                        email,
+                        full_name,
+                        role: 'trainer',
+                    });
+
+                if (profileError) {
+                    console.error('Error creating profile:', profileError);
+                    await adminClient.auth.admin.deleteUser(userId);
+                    return { error: 'Erro ao criar perfil do treinador. Tente novamente.' };
+                }
             }
-
-            // Note: No password recovery needed - trainer will use Magic Link to access
         }
 
         // Create trainer record
