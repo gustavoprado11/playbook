@@ -12,6 +12,7 @@ async function getTrainerStudents(trainerId: string) {
         .select('*')
         .eq('trainer_id', trainerId)
         .eq('status', 'active')
+        .eq('is_archived', false)
         .order('full_name');
 
     return (students || []) as Student[];

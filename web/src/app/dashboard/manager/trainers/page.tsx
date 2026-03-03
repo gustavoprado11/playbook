@@ -18,11 +18,12 @@ async function getTrainersWithStats() {
 
     if (error || !trainers) return [];
 
-    // 2. Fetch Active Students Counts per Trainer
+    // 2. Fetch Active Students Counts per Trainer (exclude archived)
     const { data: students } = await supabase
         .from('students')
         .select('trainer_id, created_at, status')
-        .eq('status', 'active');
+        .eq('status', 'active')
+        .eq('is_archived', false);
 
     // 3. Simple Stats Aggregation
     const statsMap = new Map<string, { activeStudents: number }>();
