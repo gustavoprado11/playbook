@@ -1,6 +1,6 @@
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
-import { format, parseISO } from 'date-fns';
+import { differenceInDays, format, isToday, isYesterday, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 export function cn(...inputs: ClassValue[]) {
@@ -46,4 +46,32 @@ export function getMonthOptions(count: number = 6): { value: string; label: stri
     }
 
     return options;
+}
+
+export function formatRelativeDate(dateStr: string | null): string {
+    if (!dateStr) return 'Nunca';
+
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+
+    if (diffMins < 60) return `Há ${Math.max(diffMins, 1)} minutos`;
+    if (isToday(date)) return `Hoje, ${format(date, 'HH:mm')}`;
+    if (isYesterday(date)) return `Ontem, ${format(date, 'HH:mm')}`;
+
+    const days = differenceInDays(now, date);
+    if (days < 7) return `Há ${days} dias`;
+    if (days < 30) return `Há ${Math.floor(days / 7)} semanas`;
+    return format(date, 'dd/MM/yyyy');
+}
+
+export type ActivityUrgency = 'green' | 'yellow' | 'red';
+
+export function getActivityUrgency(dateStr: string | null): ActivityUrgency {
+    if (!dateStr) return 'red';
+    const days = differenceInDays(new Date(), new Date(dateStr));
+    if (days <= 7) return 'green';
+    if (days <= 14) return 'yellow';
+    return 'red';
 }

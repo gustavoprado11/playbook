@@ -6,7 +6,8 @@ import { formatCurrency, formatPercent, formatMonthYear, getFirstDayOfMonth } fr
 import { Users, UserCheck, TrendingUp, Coins } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import type { Trainer, PerformanceSnapshot, Profile } from '@/types/database';
+import type { Trainer, PerformanceSnapshot, Profile, TrainerActivitySummary } from '@/types/database';
+import { TrainerActivityPanel } from './trainer-activity-panel';
 
 async function getManagerStats() {
     const supabase = await createClient();
@@ -45,6 +46,21 @@ async function getManagerStats() {
     };
 }
 
+async function getTrainerActivity(): Promise<TrainerActivitySummary[]> {
+    const supabase = await createClient();
+
+    const { data, error } = await supabase
+        .from('trainer_activity_summary')
+        .select('*');
+
+    if (error) {
+        console.error('Error fetching trainer activity:', error);
+        return [];
+    }
+
+    return (data || []) as TrainerActivitySummary[];
+}
+
 export default async function ManagerDashboardPage() {
     const profile = await getProfile();
 
@@ -52,7 +68,10 @@ export default async function ManagerDashboardPage() {
         redirect('/dashboard');
     }
 
-    const stats = await getManagerStats();
+    const [stats, activity] = await Promise.all([
+        getManagerStats(),
+        getTrainerActivity(),
+    ]);
     const referenceMonth = getFirstDayOfMonth();
 
     return (
@@ -126,6 +145,9 @@ export default async function ManagerDashboardPage() {
                     </CardContent>
                 </Card>
             </div>
+
+            {/* Trainer Activity Panel */}
+            <TrainerActivityPanel data={activity} />
 
             {/* Trainers Performance Table */}
             <Card>

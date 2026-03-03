@@ -293,3 +293,19 @@ export interface CreateGameRuleInput {
   kpi_config: KPIConfig;
   base_reward_amount: number;
 }
+
+// Activity Tracking
+export type TrainerActivityType =
+  | 'login'
+  | 'result_management'
+  | 'student_status_update'
+  | 'referral_registered';
+
+export interface TrainerActivitySummary {
+  trainer_id: string;
+  trainer_name: string;
+  last_login: string | null;
+  last_result_management: string | null;
+  last_student_status_update: string | null;
+  last_referral_registered: string | null;
+}
