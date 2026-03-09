@@ -136,6 +136,76 @@ export interface AttendancePublicLink {
   updated_at: string;
 }
 
+export interface ScheduleParticipant {
+  id?: string;
+  student_id?: string;
+  guest_name?: string;
+  guest_origin?: string;
+  position: number;
+  status?: AttendanceStatus;
+  notes?: string;
+}
+
+export interface ScheduleBaseSlot {
+  id: string;
+  trainer_id: string;
+  weekday: number;
+  start_time: string;
+  capacity: number;
+  notes: string | null;
+  is_active: boolean;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+  trainer?: Trainer & { profile?: Profile };
+  entries?: ScheduleBaseEntry[];
+}
+
+export interface ScheduleBaseEntry {
+  id: string;
+  slot_id: string;
+  student_id: string | null;
+  guest_name: string | null;
+  guest_origin: string | null;
+  position: number;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+  student?: Student & { trainer?: Trainer & { profile?: Profile } };
+}
+
+export interface ScheduleWeekSlot {
+  id: string;
+  base_slot_id: string | null;
+  trainer_id: string;
+  week_start: string;
+  weekday: number;
+  start_time: string;
+  capacity: number;
+  notes: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+  trainer?: Trainer & { profile?: Profile };
+  entries?: ScheduleWeekEntry[];
+}
+
+export interface ScheduleWeekEntry {
+  id: string;
+  week_slot_id: string;
+  student_id: string | null;
+  guest_name: string | null;
+  guest_origin: string | null;
+  position: number;
+  status: AttendanceStatus;
+  notes: string | null;
+  marked_by: string | null;
+  marked_at: string | null;
+  created_at: string;
+  updated_at: string;
+  student?: Student & { trainer?: Trainer & { profile?: Profile } };
+}
+
 // Protocols Management Types
 export type AssessmentPillar = 'composition' | 'neuromuscular' | 'specific' | 'rom';
 
@@ -356,6 +426,17 @@ export interface SetAttendanceStatusInput {
   schedule_template_id: string;
   session_date: string;
   status: AttendanceStatus;
+}
+
+export interface UpsertScheduleSlotInput {
+  slot_id?: string;
+  trainer_id?: string;
+  weekday: number;
+  start_time: string;
+  capacity: number;
+  notes?: string;
+  week_start?: string;
+  entries: ScheduleParticipant[];
 }
 
 // Activity Tracking

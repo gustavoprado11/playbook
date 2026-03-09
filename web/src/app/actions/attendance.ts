@@ -2,11 +2,11 @@
 
 import crypto from 'node:crypto';
 import { revalidatePath } from 'next/cache';
-import { getProfile, getTrainerId } from '@/app/actions/auth';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { normalizeTimeInput } from '@/lib/attendance';
 import { createClient } from '@/lib/supabase/server';
-import type { AttendancePublicLink, AttendanceStatus, SetAttendanceStatusInput, UpsertWeeklyScheduleInput, WeeklyScheduleTemplate } from '@/types/database';
+import { getProfile, getTrainerId } from '@/app/actions/auth';
+import { ensureWeekAgendaFromBase, normalizeParticipants, normalizeSlotPayload, validateParticipants } from '@/lib/attendance-store';
+import type { AttendancePublicLink, UpsertScheduleSlotInput } from '@/types/database';
 
 async function getAccessContext() {
     const profile = await getProfile();
@@ -30,154 +30,211 @@ function revalidateAttendanceViews() {
     revalidatePath('/dashboard/trainer/attendance');
 }
 
-function assertParticipantInput(input: UpsertWeeklyScheduleInput) {
-    const hasStudent = Boolean(input.student_id);
-    const hasGuest = Boolean(input.guest_name?.trim());
+function resolveTrainerId(
+    role: 'manager' | 'trainer',
+    ownTrainerId: string | null,
+    inputTrainerId?: string
+) {
+    const trainerId = role === 'trainer' ? ownTrainerId : inputTrainerId;
 
-    if (hasStudent === hasGuest) {
-        throw new Error('Informe um aluno cadastrado ou um nome avulso');
+    if (!trainerId) {
+        throw new Error('Selecione o treinador responsavel');
+    }
+
+    return trainerId;
+}
+
+async function replaceEntries(
+    supabase: any,
+    table: 'schedule_base_entries' | 'schedule_week_entries',
+    keyName: 'slot_id' | 'week_slot_id',
+    slotId: string,
+    entries: any[]
+) {
+    await supabase.from(table).delete().eq(keyName, slotId);
+
+    if (entries.length === 0) {
+        return;
+    }
+
+    const { error } = await supabase
+        .from(table)
+        .insert(entries.map((entry) => ({
+            ...entry,
+            [keyName]: slotId,
+        })));
+
+    if (error) {
+        console.error(`Error replacing ${table}:`, error);
+        throw new Error('Nao foi possivel salvar os participantes do horario');
     }
 }
 
-export async function upsertWeeklyScheduleSlot(input: UpsertWeeklyScheduleInput) {
+export async function upsertBaseScheduleSlot(input: UpsertScheduleSlotInput) {
     const { supabase, profile, trainerId } = await getAccessContext();
-    assertParticipantInput(input);
+    validateParticipants(input.entries);
 
-    const assignedTrainerId = profile.role === 'trainer' ? trainerId : input.trainer_id;
-
-    if (!assignedTrainerId) {
-        throw new Error('Selecione o treinador responsavel pelo horario');
-    }
-
-    const payload = {
-        student_id: input.student_id || null,
-        guest_name: input.student_id ? null : input.guest_name?.trim() || null,
-        guest_origin: input.student_id ? null : input.guest_origin?.trim() || null,
+    const assignedTrainerId = resolveTrainerId(profile.role, trainerId, input.trainer_id);
+    const slotPayload = normalizeSlotPayload({
         trainer_id: assignedTrainerId,
         weekday: input.weekday,
-        start_time: normalizeTimeInput(input.start_time),
-        notes: input.notes?.trim() || null,
-        created_by: profile.id,
-    };
+        start_time: input.start_time,
+        capacity: input.capacity,
+        notes: input.notes,
+    });
 
-    if (input.id) {
+    let slotId = input.slot_id;
+
+    if (slotId) {
         const { error } = await supabase
-            .from('weekly_schedule_templates')
-            .update(payload)
-            .eq('id', input.id);
+            .from('schedule_base_slots')
+            .update(slotPayload)
+            .eq('id', slotId);
 
         if (error) {
-            console.error('Error updating schedule slot:', error);
-            throw new Error('Nao foi possivel atualizar o horario base');
+            console.error('Error updating base schedule slot:', error);
+            throw new Error('Nao foi possivel atualizar o horario fixo');
         }
     } else {
-        const { error } = await supabase
-            .from('weekly_schedule_templates')
-            .insert(payload);
+        const { data, error } = await supabase
+            .from('schedule_base_slots')
+            .insert({
+                ...slotPayload,
+                created_by: profile.id,
+            })
+            .select('id')
+            .single();
 
-        if (error) {
-            console.error('Error creating schedule slot:', error);
-            throw new Error('Nao foi possivel criar o horario base');
+        if (error || !data) {
+            console.error('Error creating base schedule slot:', error);
+            throw new Error('Nao foi possivel criar o horario fixo');
         }
+
+        slotId = data.id;
     }
+
+    const ensuredSlotId = slotId;
+    if (!ensuredSlotId) {
+        throw new Error('Nao foi possivel identificar o horario fixo');
+    }
+
+    await replaceEntries(
+        supabase,
+        'schedule_base_entries',
+        'slot_id',
+        ensuredSlotId,
+        normalizeParticipants(input.entries)
+    );
 
     revalidateAttendanceViews();
     return { success: true };
 }
 
-export async function archiveWeeklyScheduleSlot(slotId: string) {
+export async function archiveBaseScheduleSlot(slotId: string) {
     const { supabase } = await getAccessContext();
 
     const { error } = await supabase
-        .from('weekly_schedule_templates')
+        .from('schedule_base_slots')
         .update({ is_active: false })
         .eq('id', slotId);
 
     if (error) {
-        console.error('Error archiving schedule slot:', error);
-        throw new Error('Nao foi possivel remover o horario base');
+        console.error('Error archiving base schedule slot:', error);
+        throw new Error('Nao foi possivel remover o horario fixo');
     }
 
     revalidateAttendanceViews();
     return { success: true };
 }
 
-async function getScheduleTemplateForStatus(
-    scheduleTemplateId: string,
-    useAdmin = false
-): Promise<Pick<WeeklyScheduleTemplate, 'id' | 'student_id' | 'guest_name' | 'guest_origin' | 'trainer_id' | 'start_time'> | null> {
-    const client = useAdmin ? createAdminClient() : await createClient();
-    const { data, error } = await client
-        .from('weekly_schedule_templates')
-        .select('id, student_id, guest_name, guest_origin, trainer_id, start_time')
-        .eq('id', scheduleTemplateId)
-        .eq('is_active', true)
-        .single();
-
-    if (error || !data) {
-        return null;
+async function upsertWeekScheduleSlotInternal(
+    supabase: any,
+    input: UpsertScheduleSlotInput,
+    trainerId: string
+) {
+    if (!input.week_start) {
+        throw new Error('Semana invalida');
     }
 
-    return data as Pick<WeeklyScheduleTemplate, 'id' | 'student_id' | 'guest_name' | 'guest_origin' | 'trainer_id' | 'start_time'>;
-}
+    validateParticipants(input.entries);
 
-async function persistAttendanceStatus(
-    template: Pick<WeeklyScheduleTemplate, 'id' | 'student_id' | 'guest_name' | 'guest_origin' | 'trainer_id' | 'start_time'>,
-    sessionDate: string,
-    status: AttendanceStatus,
-    markedBy: string | null,
-    useAdmin = false
-) {
-    const client = useAdmin ? createAdminClient() : await createClient();
+    const slotPayload = normalizeSlotPayload({
+        trainer_id: trainerId,
+        weekday: input.weekday,
+        start_time: input.start_time,
+        capacity: input.capacity,
+        notes: input.notes,
+    });
 
-    if (status === 'pending') {
-        const { error } = await client
-            .from('attendance_records')
-            .delete()
-            .eq('schedule_template_id', template.id)
-            .eq('session_date', sessionDate);
+    let slotId = input.slot_id;
+
+    if (slotId) {
+        const { error } = await supabase
+            .from('schedule_week_slots')
+            .update(slotPayload)
+            .eq('id', slotId);
 
         if (error) {
-            console.error('Error clearing attendance status:', error);
-            throw new Error('Nao foi possivel limpar a marcacao');
+            console.error('Error updating week schedule slot:', error);
+            throw new Error('Nao foi possivel atualizar o horario da semana');
+        }
+    } else {
+        const { data, error } = await supabase
+            .from('schedule_week_slots')
+            .insert({
+                ...slotPayload,
+                week_start: input.week_start,
+            })
+            .select('id')
+            .single();
+
+        if (error || !data) {
+            console.error('Error creating week schedule slot:', error);
+            throw new Error('Nao foi possivel criar o horario da semana');
         }
 
-        return;
+        slotId = data.id;
     }
 
-    const { error } = await client
-        .from('attendance_records')
-        .upsert(
-            {
-                schedule_template_id: template.id,
-                student_id: template.student_id,
-                guest_name: template.guest_name,
-                guest_origin: template.guest_origin,
-                trainer_id: template.trainer_id,
-                session_date: sessionDate,
-                start_time: template.start_time,
-                status,
-                marked_by: markedBy,
-                marked_at: new Date().toISOString(),
-            },
-            { onConflict: 'schedule_template_id,session_date' }
-        );
-
-    if (error) {
-        console.error('Error setting attendance status:', error);
-        throw new Error('Nao foi possivel salvar a presenca');
+    const ensuredSlotId = slotId;
+    if (!ensuredSlotId) {
+        throw new Error('Nao foi possivel identificar o horario da semana');
     }
+
+    await replaceEntries(
+        supabase,
+        'schedule_week_entries',
+        'week_slot_id',
+        ensuredSlotId,
+        normalizeParticipants(input.entries, true)
+    );
+
+    return { success: true };
 }
 
-export async function setAttendanceStatus(input: SetAttendanceStatusInput) {
-    const { profile } = await getAccessContext();
-    const template = await getScheduleTemplateForStatus(input.schedule_template_id);
+export async function upsertWeekScheduleSlot(input: UpsertScheduleSlotInput) {
+    const { supabase, profile, trainerId } = await getAccessContext();
+    const assignedTrainerId = resolveTrainerId(profile.role, trainerId, input.trainer_id);
 
-    if (!template) {
-        throw new Error('Horario base nao encontrado');
+    await ensureWeekAgendaFromBase(supabase, input.week_start!, profile.role === 'trainer' ? assignedTrainerId : undefined);
+    await upsertWeekScheduleSlotInternal(supabase, input, assignedTrainerId);
+    revalidateAttendanceViews();
+    return { success: true };
+}
+
+export async function deleteWeekScheduleSlot(slotId: string) {
+    const { supabase } = await getAccessContext();
+
+    const { error } = await supabase
+        .from('schedule_week_slots')
+        .delete()
+        .eq('id', slotId);
+
+    if (error) {
+        console.error('Error deleting week schedule slot:', error);
+        throw new Error('Nao foi possivel remover o horario da semana');
     }
 
-    await persistAttendanceStatus(template, input.session_date, input.status, profile.id);
     revalidateAttendanceViews();
     return { success: true };
 }
@@ -253,7 +310,7 @@ export async function regenerateAttendancePublicLink() {
     return data as AttendancePublicLink;
 }
 
-export async function setPublicAttendanceStatus(accessToken: string, input: SetAttendanceStatusInput) {
+async function assertPublicLink(accessToken: string) {
     const admin = createAdminClient();
     const { data: link } = await admin
         .from('attendance_public_links')
@@ -266,12 +323,24 @@ export async function setPublicAttendanceStatus(accessToken: string, input: SetA
         throw new Error('Link de agenda invalido');
     }
 
-    const template = await getScheduleTemplateForStatus(input.schedule_template_id, true);
+    return admin;
+}
 
-    if (!template) {
-        throw new Error('Horario base nao encontrado');
+export async function upsertPublicWeekScheduleSlot(accessToken: string, input: UpsertScheduleSlotInput) {
+    const admin = await assertPublicLink(accessToken);
+    await ensureWeekAgendaFromBase(admin, input.week_start!);
+    await upsertWeekScheduleSlotInternal(admin, input, resolveTrainerId('manager', null, input.trainer_id));
+    return { success: true };
+}
+
+export async function deletePublicWeekScheduleSlot(accessToken: string, slotId: string) {
+    const admin = await assertPublicLink(accessToken);
+    const { error } = await admin.from('schedule_week_slots').delete().eq('id', slotId);
+
+    if (error) {
+        console.error('Error deleting public week slot:', error);
+        throw new Error('Nao foi possivel remover o horario da semana');
     }
 
-    await persistAttendanceStatus(template, input.session_date, input.status, null, true);
     return { success: true };
 }
