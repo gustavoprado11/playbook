@@ -280,8 +280,84 @@ export async function createAssessment(input: CreateAssessmentInput) {
     }
 
     revalidatePath(`/dashboard/trainer/students/${input.student_id}`);
+    revalidatePath('/dashboard/trainer/students');
     revalidatePath('/dashboard/trainer'); // Update KPIs
+    revalidatePath('/dashboard/manager/students');
     return assessment as StudentAssessment;
+}
+
+export async function updateAssessment(input: CreateAssessmentInput & { assessment_id: string }) {
+    const { supabase } = await checkAuth();
+
+    const { error: assessmentError } = await supabase
+        .from('student_assessments')
+        .update({
+            performed_at: input.performed_at,
+            notes: input.notes,
+        })
+        .eq('id', input.assessment_id)
+        .eq('student_id', input.student_id);
+
+    if (assessmentError) {
+        console.error('Error updating assessment:', assessmentError);
+        if (assessmentError.code === '42501') {
+            throw new Error('Você só pode editar avaliações dos seus próprios alunos.');
+        }
+        throw new Error('Falha ao atualizar avaliação');
+    }
+
+    const { error: deleteResultsError } = await supabase
+        .from('assessment_results')
+        .delete()
+        .eq('assessment_id', input.assessment_id);
+
+    if (deleteResultsError) {
+        console.error('Error clearing assessment results:', deleteResultsError);
+        throw new Error('Falha ao atualizar os resultados da avaliação');
+    }
+
+    if (input.results.length > 0) {
+        const { error: insertResultsError } = await supabase
+            .from('assessment_results')
+            .insert(input.results.map((result) => ({
+                assessment_id: input.assessment_id,
+                metric_id: result.metric_id,
+                value: result.value,
+            })));
+
+        if (insertResultsError) {
+            console.error('Error re-inserting assessment results:', insertResultsError);
+            throw new Error('Falha ao salvar os novos resultados da avaliação');
+        }
+    }
+
+    revalidatePath(`/dashboard/trainer/students/${input.student_id}`);
+    revalidatePath('/dashboard/trainer/students');
+    revalidatePath('/dashboard/trainer');
+    revalidatePath('/dashboard/manager/students');
+}
+
+export async function deleteAssessment(studentId: string, assessmentId: string) {
+    const { supabase } = await checkAuth();
+
+    const { error } = await supabase
+        .from('student_assessments')
+        .delete()
+        .eq('id', assessmentId)
+        .eq('student_id', studentId);
+
+    if (error) {
+        console.error('Error deleting assessment:', error);
+        if (error.code === '42501') {
+            throw new Error('Você só pode excluir avaliações dos seus próprios alunos.');
+        }
+        throw new Error('Falha ao excluir avaliação');
+    }
+
+    revalidatePath(`/dashboard/trainer/students/${studentId}`);
+    revalidatePath('/dashboard/trainer/students');
+    revalidatePath('/dashboard/trainer');
+    revalidatePath('/dashboard/manager/students');
 }
 
 export async function getStudentAssessments(studentId: string) {

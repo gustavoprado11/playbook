@@ -72,11 +72,15 @@ export default async function StudentDetailsPage({ params }: { params: Promise<{
             ) : (
                 <div className="grid gap-10">
                     {groups.map((group) => (
-                        <ProtocolTimeline key={group.protocolId} group={group} />
+                        <ProtocolTimeline
+                            key={group.protocolId}
+                            group={group}
+                            studentId={student.id}
+                            protocols={protocols}
+                        />
                     ))}
                 </div>
             )}
         </div>
     );
 }
-

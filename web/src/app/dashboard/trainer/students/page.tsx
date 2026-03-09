@@ -2,6 +2,9 @@ import { createClient } from '@/lib/supabase/server';
 import { getProfile, getTrainerId } from '@/app/actions/auth';
 import { redirect } from 'next/navigation';
 import { StudentTable } from './student-table';
+import { Button } from '@/components/ui/button';
+import { UserPlus } from 'lucide-react';
+import Link from 'next/link';
 import type { Student } from '@/types/database';
 
 async function getTrainerStudents(trainerId: string) {
@@ -73,11 +76,19 @@ export default async function TrainerStudentsPage() {
 
     return (
         <div className="space-y-6">
-            <div>
-                <h1 className="text-2xl font-bold text-zinc-900">Meus Alunos</h1>
-                <p className="mt-1 text-zinc-500">
-                    Gerencie o status de avaliação da sua carteira
-                </p>
+            <div className="flex items-center justify-between gap-4">
+                <div>
+                    <h1 className="text-2xl font-bold text-zinc-900">Meus Alunos</h1>
+                    <p className="mt-1 text-zinc-500">
+                        Gerencie sua carteira e o status de avaliação dos alunos
+                    </p>
+                </div>
+                <Link href="/dashboard/trainer/students/new">
+                    <Button>
+                        <UserPlus className="mr-2 h-4 w-4" />
+                        Novo Aluno
+                    </Button>
+                </Link>
             </div>
 
             <StudentTable

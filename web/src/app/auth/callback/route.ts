@@ -6,6 +6,11 @@ export async function GET(request: NextRequest) {
     const code = requestUrl.searchParams.get('code');
     const token_hash = requestUrl.searchParams.get('token_hash');
     const type = requestUrl.searchParams.get('type');
+    const cookiesToApply: Array<{
+        name: string;
+        value: string;
+        options?: Parameters<NextResponse['cookies']['set']>[2];
+    }> = [];
 
     // Default redirect destination
     let redirectTo = new URL('/login', requestUrl.origin);
@@ -25,6 +30,7 @@ export async function GET(request: NextRequest) {
                 },
                 setAll(cookiesToSet) {
                     cookiesToSet.forEach(({ name, value, options }) => {
+                        cookiesToApply.push({ name, value, options });
                         response.cookies.set(name, value, options);
                     });
                 },
@@ -82,14 +88,10 @@ export async function GET(request: NextRequest) {
             .single();
 
         if (trainer) {
-            supabase
-                .from('trainer_activity_log')
-                .insert({
-                    trainer_id: trainer.id,
-                    activity_type: 'login',
-                })
-                .then(() => {})
-                .catch(() => {});
+            void supabase.from('trainer_activity_log').insert({
+                trainer_id: trainer.id,
+                activity_type: 'login',
+            });
         }
     }
 
@@ -104,8 +106,8 @@ export async function GET(request: NextRequest) {
 
     // Create final redirect with all cookies preserved
     const finalResponse = NextResponse.redirect(redirectTo);
-    response.cookies.getAll().forEach((cookie) => {
-        finalResponse.cookies.set(cookie.name, cookie.value);
+    cookiesToApply.forEach(({ name, value, options }) => {
+        finalResponse.cookies.set(name, value, options);
     });
 
     return finalResponse;

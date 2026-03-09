@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { createStudent } from '@/app/actions/manager';
 import { Button } from '@/components/ui/button';
@@ -14,13 +13,18 @@ import type { Trainer, Profile } from '@/types/database';
 
 interface NewStudentFormProps {
     trainers: (Trainer & { profile: Profile })[];
+    mode?: 'manager' | 'trainer';
+    trainerId?: string;
 }
 
-export function NewStudentForm({ trainers }: NewStudentFormProps) {
+export function NewStudentForm({
+    trainers,
+    mode = 'manager',
+    trainerId,
+}: NewStudentFormProps) {
     const [error, setError] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [origin, setOrigin] = useState<string>('organic');
-    const router = useRouter();
 
     async function handleSubmit(formData: FormData) {
         setIsLoading(true);
@@ -48,14 +52,18 @@ export function NewStudentForm({ trainers }: NewStudentFormProps) {
     return (
         <>
             <div className="flex items-center gap-4">
-                <Link href="/dashboard/manager/students">
+                <Link href={mode === 'trainer' ? '/dashboard/trainer/students' : '/dashboard/manager/students'}>
                     <Button variant="ghost" size="icon">
                         <ArrowLeft className="h-5 w-5" />
                     </Button>
                 </Link>
                 <div>
                     <h1 className="text-2xl font-bold text-zinc-900">Novo Aluno</h1>
-                    <p className="mt-1 text-zinc-500">Cadastrar um novo aluno no estúdio</p>
+                    <p className="mt-1 text-zinc-500">
+                        {mode === 'trainer'
+                            ? 'Cadastre um novo aluno na sua carteira'
+                            : 'Cadastrar um novo aluno no estúdio'}
+                    </p>
                 </div>
             </div>
 
@@ -63,7 +71,9 @@ export function NewStudentForm({ trainers }: NewStudentFormProps) {
                 <CardHeader>
                     <CardTitle>Informações do Aluno</CardTitle>
                     <CardDescription>
-                        Preencha os dados do novo aluno
+                        {mode === 'trainer'
+                            ? 'Preencha os dados do aluno que será vinculado à sua carteira'
+                            : 'Preencha os dados do novo aluno'}
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -91,21 +101,25 @@ export function NewStudentForm({ trainers }: NewStudentFormProps) {
                             />
                         </div>
 
-                        <div className="space-y-2">
-                            <Label>Treinador responsável</Label>
-                            <Select name="trainer_id" required>
-                                <SelectTrigger>
-                                    <SelectValue placeholder="Selecione..." />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {trainerOptions.map(option => (
-                                        <SelectItem key={option.value} value={option.value}>
-                                            {option.label}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
+                        {mode === 'manager' ? (
+                            <div className="space-y-2">
+                                <Label>Treinador responsável</Label>
+                                <Select name="trainer_id" required>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Selecione..." />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {trainerOptions.map(option => (
+                                            <SelectItem key={option.value} value={option.value}>
+                                                {option.label}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        ) : (
+                            <input type="hidden" name="trainer_id" value={trainerId || ''} />
+                        )}
 
                         <div className="grid gap-4 md:grid-cols-2">
                             <div className="space-y-2">
@@ -136,7 +150,7 @@ export function NewStudentForm({ trainers }: NewStudentFormProps) {
                             />
                         </div>
 
-                        {origin === 'referral' && (
+                        {origin === 'referral' && mode === 'manager' && (
                             <div className="space-y-2">
                                 <Label>Indicado por qual treinador?</Label>
                                 <Select name="referred_by_trainer_id" required>
@@ -152,6 +166,10 @@ export function NewStudentForm({ trainers }: NewStudentFormProps) {
                                     </SelectContent>
                                 </Select>
                             </div>
+                        )}
+
+                        {origin === 'referral' && mode === 'trainer' && (
+                            <input type="hidden" name="referred_by_trainer_id" value={trainerId || ''} />
                         )}
 
                         <div className="w-full">
@@ -173,7 +191,10 @@ export function NewStudentForm({ trainers }: NewStudentFormProps) {
                         )}
 
                         <div className="flex gap-3 pt-4">
-                            <Link href="/dashboard/manager/students" className="flex-1">
+                            <Link
+                                href={mode === 'trainer' ? '/dashboard/trainer/students' : '/dashboard/manager/students'}
+                                className="flex-1"
+                            >
                                 <Button type="button" variant="outline" className="w-full">
                                     Cancelar
                                 </Button>

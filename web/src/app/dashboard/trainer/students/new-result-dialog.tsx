@@ -1,6 +1,6 @@
 'use client';
 
-import { createAssessment } from '@/app/actions/results';
+import { createAssessment, updateAssessment } from '@/app/actions/results';
 import { Button } from '@/components/ui/button';
 import {
     Dialog,
@@ -21,25 +21,51 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import type { AssessmentProtocol } from '@/types/database';
+import type { AssessmentProtocol, StudentAssessment } from '@/types/database';
 import { Plus } from 'lucide-react';
-import { useState } from 'react';
+import { ReactNode, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
 interface NewResultDialogProps {
     studentId: string;
     protocols: AssessmentProtocol[];
+    assessment?: StudentAssessment;
+    trigger?: ReactNode;
 }
 
-export function NewResultDialog({ studentId, protocols }: NewResultDialogProps) {
+export function NewResultDialog({
+    studentId,
+    protocols,
+    assessment,
+    trigger,
+}: NewResultDialogProps) {
     const [open, setOpen] = useState(false);
     const [loading, setLoading] = useState(false);
-    const [selectedProtocolId, setSelectedProtocolId] = useState<string>('');
+    const [selectedProtocolId, setSelectedProtocolId] = useState<string>(assessment?.protocol_id || '');
     const [metricValues, setMetricValues] = useState<Record<string, string>>({});
 
+    const isEditing = Boolean(assessment);
     const selectedProtocol = protocols.find(p => p.id === selectedProtocolId);
 
+    useEffect(() => {
+        if (!open) return;
+
+        if (assessment) {
+            setSelectedProtocolId(assessment.protocol_id);
+            setMetricValues(
+                Object.fromEntries(
+                    (assessment.results || []).map((result) => [result.metric_id, String(result.value)])
+                )
+            );
+            return;
+        }
+
+        setSelectedProtocolId('');
+        setMetricValues({});
+    }, [assessment, open]);
+
     const handleProtocolChange = (value: string) => {
+        if (isEditing) return;
         setSelectedProtocolId(value);
         setMetricValues({}); // Reset values when protocol changes
     };
@@ -70,22 +96,35 @@ export function NewResultDialog({ studentId, protocols }: NewResultDialogProps) 
 
             if (!date) throw new Error('Data da medição é obrigatória');
 
-            await createAssessment({
-                student_id: studentId,
-                protocol_id: selectedProtocol.id,
-                performed_at: date,
-                notes,
-                results
-            });
+            if (assessment) {
+                await updateAssessment({
+                    assessment_id: assessment.id,
+                    student_id: studentId,
+                    protocol_id: selectedProtocol.id,
+                    performed_at: date,
+                    notes,
+                    results,
+                });
+            } else {
+                await createAssessment({
+                    student_id: studentId,
+                    protocol_id: selectedProtocol.id,
+                    performed_at: date,
+                    notes,
+                    results
+                });
+            }
 
-            toast.success('Avaliação registrada com sucesso!');
+            toast.success(isEditing ? 'Avaliação atualizada com sucesso!' : 'Avaliação registrada com sucesso!');
             setOpen(false);
             // Reset
-            setSelectedProtocolId('');
+            if (!isEditing) {
+                setSelectedProtocolId('');
+            }
             setMetricValues({});
         } catch (error: any) {
             console.error(error);
-            toast.error(error.message || 'Erro ao registrar avaliação');
+            toast.error(error.message || `Erro ao ${isEditing ? 'atualizar' : 'registrar'} avaliação`);
         } finally {
             setLoading(false);
         }
@@ -108,24 +147,28 @@ export function NewResultDialog({ studentId, protocols }: NewResultDialogProps) 
     return (
         <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
-                <Button>
-                    <Plus className="mr-2 h-4 w-4" />
-                    Nova Avaliação
-                </Button>
+                {trigger || (
+                    <Button>
+                        <Plus className="mr-2 h-4 w-4" />
+                        Nova Avaliação
+                    </Button>
+                )}
             </DialogTrigger>
             <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
                 <form action={handleSubmit}>
                     <DialogHeader>
-                        <DialogTitle>Registrar Avaliação</DialogTitle>
+                        <DialogTitle>{isEditing ? 'Editar Avaliação' : 'Registrar Avaliação'}</DialogTitle>
                         <DialogDescription>
-                            Selecione o protocolo e preencha as métricas.
+                            {isEditing
+                                ? 'Atualize a data, observações e os valores desta avaliação.'
+                                : 'Selecione o protocolo e preencha as métricas.'}
                         </DialogDescription>
                     </DialogHeader>
 
                     <div className="grid gap-6 py-4">
                         <div className="space-y-2">
                             <Label>Protocolo</Label>
-                            <Select value={selectedProtocolId} onValueChange={handleProtocolChange} required>
+                            <Select value={selectedProtocolId} onValueChange={handleProtocolChange} required disabled={isEditing}>
                                 <SelectTrigger>
                                     <SelectValue placeholder="Selecione o protocolo" />
                                 </SelectTrigger>
@@ -183,7 +226,7 @@ export function NewResultDialog({ studentId, protocols }: NewResultDialogProps) 
                                     id="date"
                                     name="performed_at"
                                     type="date"
-                                    defaultValue={new Date().toISOString().split('T')[0]}
+                                    defaultValue={assessment?.performed_at || new Date().toISOString().split('T')[0]}
                                     required
                                 />
                             </div>
@@ -194,6 +237,7 @@ export function NewResultDialog({ studentId, protocols }: NewResultDialogProps) 
                                     name="notes"
                                     placeholder="Contexto sobre a avaliação..."
                                     className="resize-none"
+                                    defaultValue={assessment?.notes || ''}
                                 />
                             </div>
                         </div>
@@ -204,7 +248,7 @@ export function NewResultDialog({ studentId, protocols }: NewResultDialogProps) 
                             Cancelar
                         </Button>
                         <Button type="submit" disabled={loading || !selectedProtocol}>
-                            {loading ? 'Salvando...' : 'Salvar Avaliação'}
+                            {loading ? 'Salvando...' : isEditing ? 'Salvar Alterações' : 'Salvar Avaliação'}
                         </Button>
                     </DialogFooter>
                 </form>

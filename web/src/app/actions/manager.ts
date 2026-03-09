@@ -2,7 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { getProfile } from '@/app/actions/auth';
+import { getProfile, getTrainerId } from '@/app/actions/auth';
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import type { CreateTrainerInput, CreateStudentInput, StudentStatus, UpdateStudentInput } from '@/types/database';
@@ -240,18 +240,27 @@ export async function toggleTrainerStatus(trainerId: string, isActive: boolean) 
 
 export async function createStudent(formData: FormData) {
     const profile = await getProfile();
-    if (!profile || profile.role !== 'manager') {
+    if (!profile || !['manager', 'trainer'].includes(profile.role)) {
         return { error: 'Não autorizado' };
     }
 
     const supabase = await createClient();
+    const ownTrainerId = profile.role === 'trainer' ? await getTrainerId() : null;
+
+    if (profile.role === 'trainer' && !ownTrainerId) {
+        return { error: 'Perfil de treinador não encontrado' };
+    }
 
     const full_name = formData.get('full_name') as string;
     const email = formData.get('email') as string || null;
     const phone = formData.get('phone') as string || null;
-    const trainer_id = formData.get('trainer_id') as string;
+    const trainer_id = profile.role === 'trainer'
+        ? ownTrainerId!
+        : formData.get('trainer_id') as string;
     const origin = formData.get('origin') as 'organic' | 'referral' | 'marketing';
-    const referred_by_trainer_id = formData.get('referred_by_trainer_id') as string || null;
+    const referred_by_trainer_id = profile.role === 'trainer' && origin === 'referral'
+        ? ownTrainerId
+        : formData.get('referred_by_trainer_id') as string || null;
     const start_date = formData.get('start_date') as string || new Date().toISOString().split('T')[0];
     const notes = formData.get('notes') as string || null;
 
@@ -273,7 +282,8 @@ export async function createStudent(formData: FormData) {
     }
 
     revalidatePath('/dashboard/manager/students');
-    redirect('/dashboard/manager/students');
+    revalidatePath('/dashboard/trainer/students');
+    redirect(profile.role === 'trainer' ? '/dashboard/trainer/students' : '/dashboard/manager/students');
 }
 
 // Imports already at top of file

@@ -2,17 +2,34 @@
 
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { ChevronDown, ChevronUp, Calendar } from 'lucide-react';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { ChevronDown, ChevronUp, Calendar, Pencil, Trash2 } from 'lucide-react';
 import { formatDate, cn } from '@/lib/utils';
 import type { ProtocolGroup } from '@/lib/assessment-logic';
+import type { AssessmentProtocol } from '@/types/database';
 import { EvolutionSummary } from './evolution-summary';
+import { NewResultDialog } from '../../new-result-dialog';
+import { deleteAssessment } from '@/app/actions/results';
+import { toast } from 'sonner';
 
 interface ProtocolTimelineProps {
     group: ProtocolGroup;
+    studentId: string;
+    protocols: AssessmentProtocol[];
 }
 
-export function ProtocolTimeline({ group }: ProtocolTimelineProps) {
+export function ProtocolTimeline({ group, studentId, protocols }: ProtocolTimelineProps) {
     const [isOpen, setIsOpen] = useState(true);
+
+    async function handleDeleteAssessment(assessmentId: string) {
+        try {
+            await deleteAssessment(studentId, assessmentId);
+            toast.success('Avaliação excluída com sucesso!');
+        } catch (error) {
+            console.error(error);
+            toast.error(error instanceof Error ? error.message : 'Erro ao excluir avaliação');
+        }
+    }
 
     return (
         <div className="space-y-4">
@@ -66,6 +83,42 @@ export function ProtocolTimeline({ group }: ProtocolTimelineProps) {
                                                     "{assessment.notes}"
                                                 </p>
                                             )}
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <NewResultDialog
+                                                studentId={studentId}
+                                                protocols={protocols}
+                                                assessment={assessment}
+                                                trigger={(
+                                                    <Button variant="ghost" size="sm" className="h-8 px-2 text-zinc-500 hover:text-zinc-900">
+                                                        <Pencil className="h-4 w-4" />
+                                                    </Button>
+                                                )}
+                                            />
+                                            <AlertDialog>
+                                                <AlertDialogTrigger asChild>
+                                                    <Button variant="ghost" size="sm" className="h-8 px-2 text-zinc-500 hover:text-red-600">
+                                                        <Trash2 className="h-4 w-4" />
+                                                    </Button>
+                                                </AlertDialogTrigger>
+                                                <AlertDialogContent>
+                                                    <AlertDialogHeader>
+                                                        <AlertDialogTitle>Excluir avaliação?</AlertDialogTitle>
+                                                        <AlertDialogDescription>
+                                                            Esta ação remove a avaliação e todos os resultados vinculados a ela.
+                                                        </AlertDialogDescription>
+                                                    </AlertDialogHeader>
+                                                    <AlertDialogFooter>
+                                                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                                        <AlertDialogAction
+                                                            className="bg-red-600 hover:bg-red-700"
+                                                            onClick={() => handleDeleteAssessment(assessment.id)}
+                                                        >
+                                                            Excluir
+                                                        </AlertDialogAction>
+                                                    </AlertDialogFooter>
+                                                </AlertDialogContent>
+                                            </AlertDialog>
                                         </div>
                                     </div>
 
