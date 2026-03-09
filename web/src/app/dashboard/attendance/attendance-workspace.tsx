@@ -191,7 +191,7 @@ export function AttendanceWorkspace({
                                 {publicMode ? 'Recepcao' : 'Planilha operacional'}
                             </p>
                             <h1 className="mt-2 font-serif text-3xl leading-tight">
-                                Agenda em formato de grade
+                                Agenda Propulse
                             </h1>
                             <p className="mt-3 text-sm text-emerald-50/85">
                                 {publicMode
@@ -203,7 +203,7 @@ export function AttendanceWorkspace({
                         <div className="grid gap-3 sm:grid-cols-4">
                             <MetricBox label="Horarios" value={String(summary.slots)} />
                             <MetricBox label="OK" value={String(summary.present)} />
-                            <MetricBox label="N" value={String(summary.absent)} />
+                            <MetricBox label="Falta" value={String(summary.absent)} />
                             <MetricBox label="Pendentes" value={String(summary.pending)} />
                         </div>
                     </div>
@@ -230,16 +230,14 @@ export function AttendanceWorkspace({
                     </div>
 
                     <div className="flex flex-wrap items-center gap-3">
-                        {!publicMode && (
-                            <>
-                                <TabButton active={tab === 'week'} onClick={() => setTab('week')}>
-                                    Aba da semana
-                                </TabButton>
-                                <TabButton active={tab === 'base'} onClick={() => setTab('base')}>
-                                    Agenda-base
-                                </TabButton>
-                            </>
-                        )}
+                        <>
+                            <TabButton active={tab === 'week'} onClick={() => setTab('week')}>
+                                Aba da semana
+                            </TabButton>
+                            <TabButton active={tab === 'base'} onClick={() => setTab('base')}>
+                                Horarios fixos
+                            </TabButton>
+                        </>
 
                         {(role === 'manager' || publicMode) && (
                             <select
@@ -256,16 +254,16 @@ export function AttendanceWorkspace({
                             </select>
                         )}
 
-                        <Button onClick={() => openNewSlot(publicMode ? 'week' : tab)}>
+                        <Button onClick={() => openNewSlot(tab)}>
                             <Plus className="h-4 w-4" />
-                            {publicMode ? 'Novo horario da semana' : tab === 'week' ? 'Novo horario da semana' : 'Novo horario fixo'}
+                            {tab === 'week' ? 'Novo horario da semana' : 'Novo horario fixo'}
                         </Button>
                     </div>
                 </div>
 
                 <div className="p-6">
                     <SpreadsheetGrid
-                        mode={publicMode ? 'week' : tab}
+                        mode={tab}
                         weekDays={weekDays}
                         timeRows={timeRows}
                         baseSlots={trainerFilteredBase}
@@ -329,7 +327,7 @@ export function AttendanceWorkspace({
             <WeeklySlotDialog
                 open={dialogOpen}
                 onOpenChange={setDialogOpen}
-                mode={publicMode ? 'week' : editingMode}
+                mode={editingMode}
                 role={role}
                 publicMode={publicMode}
                 publicToken={publicToken}
@@ -533,7 +531,7 @@ function StatusMark({ status }: { status: AttendanceStatus }) {
 
     return (
         <span className={cn('rounded-full px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.2em]', config)}>
-            {status === 'pending' ? '-' : status === 'present' ? 'OK' : 'N'}
+            {status === 'pending' ? '-' : status === 'present' ? 'OK' : 'Falta'}
         </span>
     );
 }

@@ -307,7 +307,7 @@ export function WeeklySlotDialog({
                                                     <SelectContent>
                                                         <SelectItem value="pending">-</SelectItem>
                                                         <SelectItem value="present">OK</SelectItem>
-                                                        <SelectItem value="absent">N</SelectItem>
+                                                        <SelectItem value="absent">Falta</SelectItem>
                                                     </SelectContent>
                                                 </Select>
                                             </div>
