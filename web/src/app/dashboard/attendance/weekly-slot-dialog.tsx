@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { CalendarDays, Clock3, Users } from 'lucide-react';
+import { CalendarDays, Clock3, Trash2, Users } from 'lucide-react';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -383,37 +383,46 @@ export function WeeklySlotDialog({
                         </div>
 
                         <div className="p-4">
-                            <div className="hidden rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-500 lg:grid lg:grid-cols-[1fr,160px,44px] lg:gap-3">
-                                <span>Horario</span>
-                                <span>Vagas</span>
-                                <span />
-                            </div>
-
-                            <div className="mt-3 space-y-3">
+                            <div className="space-y-3">
                             {slotRows.map((row, index) => (
-                                <div key={row.id} className="grid gap-3 rounded-xl border border-zinc-200 bg-zinc-50/80 p-3 lg:grid-cols-[1fr,160px,44px]">
-                                    <Input
-                                        type="time"
-                                        label={index === 0 ? 'Horario' : `Horario ${index + 1}`}
-                                        value={row.startTime}
-                                        onChange={(event) => updateSlotRow(row.id, { startTime: event.target.value })}
-                                        required
-                                    />
-                                    <Input
-                                        type="number"
-                                        label="Vagas"
-                                        min={1}
-                                        max={30}
-                                        value={row.capacity}
-                                        onChange={(event) => updateSlotRow(row.id, { capacity: event.target.value })}
-                                        required
-                                    />
-                                    <div className="flex items-end">
+                                <div key={row.id} className="rounded-xl border border-zinc-200 bg-zinc-50/80 p-3">
+                                    <div className="mb-3 flex items-center justify-between gap-3">
+                                        <div className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-500 ring-1 ring-zinc-200">
+                                            <Clock3 className="h-3.5 w-3.5" />
+                                            {`Horario ${index + 1}`}
+                                        </div>
                                         {allowsBatchCreation && (
-                                            <Button type="button" variant="ghost" size="icon" onClick={() => removeSlotRow(row.id)} disabled={slotRows.length === 1}>
-                                                x
+                                            <Button
+                                                type="button"
+                                                variant="ghost"
+                                                size="sm"
+                                                onClick={() => removeSlotRow(row.id)}
+                                                disabled={slotRows.length === 1}
+                                                className="h-8 px-2.5 text-zinc-500 hover:text-red-600"
+                                            >
+                                                <Trash2 className="h-4 w-4" />
+                                                Remover
                                             </Button>
                                         )}
+                                    </div>
+
+                                    <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr),180px]">
+                                        <Input
+                                            type="time"
+                                            label="Horario"
+                                            value={row.startTime}
+                                            onChange={(event) => updateSlotRow(row.id, { startTime: event.target.value })}
+                                            required
+                                        />
+                                        <Input
+                                            type="number"
+                                            label="Vagas"
+                                            min={1}
+                                            max={30}
+                                            value={row.capacity}
+                                            onChange={(event) => updateSlotRow(row.id, { capacity: event.target.value })}
+                                            required
+                                        />
                                     </div>
                                 </div>
                             ))}

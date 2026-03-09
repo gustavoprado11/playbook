@@ -220,40 +220,29 @@ export function AttendanceWorkspace({
         <div className="space-y-6">
             <section className="overflow-hidden rounded-[28px] border border-zinc-200 bg-white shadow-[0_24px_60px_-42px_rgba(24,24,27,0.32)]">
                 <div className="border-b border-zinc-200 bg-[linear-gradient(135deg,#214728_0%,#406733_44%,#899f47_100%)] text-white">
-                    <div className="grid gap-5 px-5 py-5 lg:grid-cols-[minmax(0,1.6fr)_minmax(300px,0.95fr)] lg:px-6">
-                        <div className="space-y-4">
+                    <div className="grid gap-4 px-5 py-4 lg:grid-cols-[minmax(0,2fr)_minmax(280px,0.9fr)] lg:px-6">
+                        <div className="space-y-3">
                             <div className="flex flex-wrap items-center gap-2">
                                 <p className="text-[11px] font-semibold uppercase tracking-[0.32em] text-emerald-100/80">
                                     {publicMode ? 'Recepcao' : 'Planilha operacional'}
                                 </p>
-                                <div className="rounded-full border border-white/15 bg-white/10 px-3 py-1 text-[11px] uppercase tracking-[0.22em] text-emerald-50/80">
-                                    Atualizacao automatica ativa
-                                </div>
                             </div>
 
                             <div className="max-w-3xl">
-                                <h1 className="font-serif text-[2.35rem] leading-none sm:text-[2.8rem]">
+                                <h1 className="font-serif text-[2rem] leading-none sm:text-[2.35rem]">
                                     Agenda Propulse
                                 </h1>
-                                <p className="mt-3 max-w-2xl text-sm text-emerald-50/85 sm:text-[15px]">
-                                    {publicMode
-                                        ? 'Uma grade operacional para a recepcao editar a semana com rapidez, sem login e sem ruído.'
-                                        : 'Uma grade viva para montar horarios fixos, ajustar a semana e alimentar a operacao em tempo real.'}
+                                <p className="mt-2 max-w-2xl text-sm text-emerald-50/80">
+                                    {publicMode ? 'Agenda da recepcao.' : 'Agenda operacional do estudio.'}
                                 </p>
-                            </div>
-
-                            <div className="flex flex-wrap gap-2 text-xs text-emerald-50/85">
-                                <OperationalChip label={tab === 'week' ? 'Modo ativo' : 'Modo ativo'} value={tab === 'week' ? 'Aba da semana' : 'Horarios fixos'} />
-                                <OperationalChip label="Semana" value={weekLabel} />
-                                <OperationalChip label="Treinadores" value={selectedTrainer === 'all' ? 'Todos' : trainers.find((trainer) => trainer.id === selectedTrainer)?.profile?.full_name || 'Filtrado'} />
                             </div>
                         </div>
 
-                        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                            <MetricBox label="Horarios" value={String(summary.slots)} hint="blocos ativos" />
-                            <MetricBox label="Vagas" value={String(summary.capacity)} hint="capacidade total" />
-                            <MetricBox label="OK" value={String(summary.present)} hint="presencas" />
-                            <MetricBox label="Falta" value={String(summary.absent)} hint="faltas" />
+                        <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                            <MetricBox label="Horarios" value={String(summary.slots)} />
+                            <MetricBox label="Vagas" value={String(summary.capacity)} />
+                            <MetricBox label="OK" value={String(summary.present)} />
+                            <MetricBox label="Falta" value={String(summary.absent)} />
                         </div>
                     </div>
                 </div>
@@ -312,21 +301,10 @@ export function AttendanceWorkspace({
 
                 <div className="p-5 lg:p-6">
                     <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-                        <div>
-                            <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-zinc-400">
-                                {publicMode ? 'Recepcao' : 'Planilha operacional'}
-                            </p>
-                            <h2 className="mt-1 text-xl font-semibold text-zinc-950">
-                                {tab === 'week' ? 'Grade operacional da semana' : 'Grade recorrente dos horarios fixos'}
-                            </h2>
-                            <p className="mt-1 text-sm text-zinc-500">
-                                {tab === 'week'
-                                    ? 'Adicione alunos, mova a ocupacao da semana e ajuste a grade conforme a operacao real.'
-                                    : 'Monte a espinha dorsal da agenda e replique a base com menos trabalho manual.'}
-                            </p>
-                        </div>
+                        <h2 className="text-lg font-semibold text-zinc-950">
+                            {tab === 'week' ? 'Aba da semana' : 'Horarios fixos'}
+                        </h2>
                         <div className="flex flex-wrap gap-2">
-                            <SurfacePill label="Status" value={timeRows.length > 0 ? 'Grade pronta para edicao' : 'Sem blocos montados'} />
                             <SurfacePill label="Linhas" value={String(timeRows.length)} />
                             <SurfacePill label="Pendentes" value={String(summary.pending)} />
                         </div>
@@ -348,32 +326,28 @@ export function AttendanceWorkspace({
 
             {!publicMode && role === 'manager' && (
                 <section className="overflow-hidden rounded-[28px] border border-zinc-200 bg-white shadow-[0_20px_50px_-42px_rgba(24,24,27,0.32)]">
-                    <div className="grid gap-5 px-5 py-5 lg:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)] lg:px-6">
+                    <div className="grid gap-5 px-5 py-5 lg:grid-cols-[minmax(0,1fr)_minmax(320px,0.85fr)] lg:px-6">
                         <div>
                             <p className="text-xs font-semibold uppercase tracking-[0.28em] text-zinc-400">
                                 Link da recepcao
                             </p>
-                            <h2 className="mt-2 text-2xl font-semibold text-zinc-900">
-                                Agenda publica sem login
+                            <h2 className="mt-2 text-xl font-semibold text-zinc-900">
+                                Agenda publica
                             </h2>
-                            <p className="mt-2 max-w-2xl text-sm text-zinc-500">
-                                Deixe a agenda aberta na recepcao com liberdade para editar a semana e os horarios fixos, sem expor o restante do sistema.
+                            <p className="mt-2 max-w-lg text-sm text-zinc-500">
+                                Link para a recepcao operar a agenda sem login.
                             </p>
 
                             <div className="mt-4 flex flex-wrap gap-2">
-                                <SurfacePill label="Escopo" value="Recepcao" />
-                                <SurfacePill label="Permissao" value="Agenda e presenca" />
-                                <SurfacePill label="Login" value="Nao exige" />
+                                <SurfacePill label="Recepcao" value="Sem login" />
+                                <SurfacePill label="Escopo" value="Agenda" />
                             </div>
                         </div>
 
                         <div className="rounded-[24px] border border-zinc-200 bg-zinc-50 p-4">
-                            <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-zinc-400">
-                                Operacao externa
-                            </p>
                             {receptionistUrl ? (
                                 <>
-                                    <div className="mt-3 rounded-2xl border border-zinc-200 bg-white p-4 font-mono text-xs leading-6 text-zinc-600">
+                                    <div className="rounded-2xl border border-zinc-200 bg-white p-4 font-mono text-xs leading-6 text-zinc-600">
                                         {receptionistUrl}
                                     </div>
                                     <div className="mt-4 flex flex-wrap gap-2">
@@ -394,11 +368,8 @@ export function AttendanceWorkspace({
                                     </div>
                                 </>
                             ) : (
-                                <div className="mt-3 rounded-2xl border border-dashed border-zinc-300 bg-white p-5">
-                                    <p className="text-sm text-zinc-500">
-                                        Gere um link permanente para deixar a agenda aberta na recepcao.
-                                    </p>
-                                    <Button className="mt-4" onClick={handleEnsureLink} isLoading={isPending}>
+                                <div className="rounded-2xl border border-dashed border-zinc-300 bg-white p-5">
+                                    <Button onClick={handleEnsureLink} isLoading={isPending}>
                                         <KeyRound className="h-4 w-4" />
                                         Gerar link da recepcao
                                     </Button>
@@ -456,15 +427,9 @@ function SpreadsheetGrid({
         return (
             <div className="rounded-[28px] border border-zinc-200 bg-[linear-gradient(180deg,#fafaf9_0%,#f3f4f6_100%)] p-4">
                 <div className="rounded-[24px] border border-dashed border-zinc-300 bg-white px-6 py-14 text-center">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-zinc-400">
-                        Grade vazia
-                    </p>
-                    <h3 className="mt-3 text-2xl font-semibold text-zinc-900">
-                        Nenhum horario criado ainda
+                    <h3 className="text-2xl font-semibold text-zinc-900">
+                        Nenhum horario criado
                     </h3>
-                    <p className="mx-auto mt-3 max-w-2xl text-sm text-zinc-500">
-                        Comece criando a estrutura principal da agenda. Depois a operacao pode preencher vagas, mover nomes e ajustar a semana como planilha.
-                    </p>
                     <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
                         <Button onClick={() => onNewCell(mode)}>
                             <Plus className="h-4 w-4" />
@@ -696,12 +661,11 @@ function StatusMark({ status }: { status: AttendanceStatus }) {
     );
 }
 
-function MetricBox({ label, value, hint }: { label: string; value: string; hint: string }) {
+function MetricBox({ label, value }: { label: string; value: string }) {
     return (
         <div className="rounded-[22px] border border-white/15 bg-white/10 px-4 py-3 backdrop-blur-sm">
             <p className="text-[11px] uppercase tracking-[0.24em] text-emerald-50/70">{label}</p>
             <p className="mt-2 text-2xl font-semibold text-white">{value}</p>
-            <p className="mt-1 text-[11px] uppercase tracking-[0.18em] text-emerald-50/55">{hint}</p>
         </div>
     );
 }
@@ -841,15 +805,6 @@ function MobileAgendaStack({
                     </section>
                 );
             })}
-        </div>
-    );
-}
-
-function OperationalChip({ label, value }: { label: string; value: string }) {
-    return (
-        <div className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-black/10 px-3 py-1.5">
-            <span className="text-[10px] uppercase tracking-[0.18em] text-emerald-50/60">{label}</span>
-            <span className="text-xs font-medium text-white">{value}</span>
         </div>
     );
 }
