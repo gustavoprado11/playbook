@@ -1,13 +1,18 @@
 'use server';
 
 import { createClient } from '@/lib/supabase/server';
+import { isValidEmail, normalizeEmail } from '@/lib/email';
 import { redirect } from 'next/navigation';
 
 export async function signIn(formData: FormData) {
     const supabase = await createClient();
 
-    const email = formData.get('email') as string;
+    const email = normalizeEmail(formData.get('email') as string);
     const password = formData.get('password') as string;
+
+    if (!isValidEmail(email)) {
+        return { error: 'Digite um e-mail valido, por exemplo nome@dominio.com' };
+    }
 
     const { error } = await supabase.auth.signInWithPassword({
         email,
@@ -27,10 +32,14 @@ export async function signIn(formData: FormData) {
 export async function signInWithMagicLink(formData: FormData) {
     const supabase = await createClient();
 
-    const email = formData.get('email') as string;
+    const email = normalizeEmail(formData.get('email') as string);
 
     if (!email) {
         return { error: 'E-mail é obrigatório' };
+    }
+
+    if (!isValidEmail(email)) {
+        return { error: 'Digite um e-mail valido, por exemplo nome@dominio.com' };
     }
 
     const { error } = await supabase.auth.signInWithOtp({
@@ -89,4 +98,3 @@ export async function getTrainerId() {
 
     return trainer?.id || null;
 }
-

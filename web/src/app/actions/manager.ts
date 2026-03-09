@@ -3,6 +3,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { getProfile, getTrainerId } from '@/app/actions/auth';
+import { isValidEmail, normalizeEmail } from '@/lib/email';
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import type { CreateTrainerInput, CreateStudentInput, StudentStatus, UpdateStudentInput } from '@/types/database';
@@ -17,7 +18,7 @@ export async function createTrainer(formData: FormData) {
         return { error: 'Não autorizado' };
     }
 
-    const email = formData.get('email') as string;
+    const email = normalizeEmail(formData.get('email') as string);
     const full_name = formData.get('full_name') as string;
     const start_date = formData.get('start_date') as string || new Date().toISOString().split('T')[0];
     const notes = formData.get('notes') as string;
@@ -25,6 +26,10 @@ export async function createTrainer(formData: FormData) {
     // Validate required fields
     if (!email || !full_name) {
         return { error: 'Nome e e-mail são obrigatórios' };
+    }
+
+    if (!isValidEmail(email)) {
+        return { error: 'Digite um e-mail valido, por exemplo nome@dominio.com' };
     }
 
     // Check if SUPABASE_SERVICE_ROLE_KEY is configured
@@ -158,6 +163,14 @@ export async function updateTrainer(trainerId: string, data: { full_name?: strin
     const profile = await getProfile();
     if (!profile || profile.role !== 'manager') {
         return { error: 'Não autorizado' };
+    }
+
+    if (data.email) {
+        data.email = normalizeEmail(data.email);
+
+        if (!isValidEmail(data.email)) {
+            return { error: 'Digite um e-mail valido, por exemplo nome@dominio.com' };
+        }
     }
 
     const adminClient = createAdminClient();
