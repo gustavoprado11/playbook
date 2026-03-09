@@ -304,18 +304,19 @@ export function WeeklySlotDialog({
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="max-w-5xl bg-white">
-                <DialogHeader>
+            <DialogContent className="flex max-h-[92vh] w-[min(96vw,72rem)] max-w-none flex-col overflow-hidden bg-white p-0 sm:rounded-2xl">
+                <DialogHeader className="shrink-0 border-b border-zinc-200 px-4 py-4 sm:px-6">
                     <DialogTitle>{mode === 'base' ? 'Editar horario fixo' : 'Editar horario da semana'}</DialogTitle>
                     <DialogDescription>
                         Trabalhe como planilha: ajuste horarios, vagas e lista de nomes da celula selecionada.
                     </DialogDescription>
                 </DialogHeader>
 
-                <form onSubmit={handleSave} className="space-y-6">
-                    <div className="grid gap-4 md:grid-cols-3">
+                <form onSubmit={handleSave} className="flex min-h-0 flex-1 flex-col">
+                    <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-4 py-4 sm:px-6">
+                    <div className="grid gap-4 lg:grid-cols-3">
                         {(role === 'manager' || publicMode) && (
-                            <div className="space-y-2 md:col-span-2">
+                            <div className="space-y-2 lg:col-span-2">
                                 <Label>Treinador</Label>
                                 <Select value={trainerId} onValueChange={setTrainerId}>
                                     <SelectTrigger>
@@ -368,7 +369,7 @@ export function WeeklySlotDialog({
 
                         <div className="space-y-3 p-4">
                             {slotRows.map((row, index) => (
-                                <div key={row.id} className="grid gap-3 rounded-xl border border-zinc-200 bg-zinc-50 p-3 md:grid-cols-[1fr,160px,44px]">
+                                <div key={row.id} className="grid gap-3 rounded-xl border border-zinc-200 bg-zinc-50 p-3 lg:grid-cols-[1fr,160px,44px]">
                                     <Input
                                         type="time"
                                         label={index === 0 ? 'Horario' : `Horario ${index + 1}`}
@@ -435,7 +436,7 @@ export function WeeklySlotDialog({
                                     const canConvertToGuest = entry.participantType === 'student' && Boolean(entry.search.trim()) && !hasExactStudent;
 
                                     return (
-                                        <div key={entry.id} className="grid gap-3 rounded-xl border border-zinc-200 bg-zinc-50 p-3 md:grid-cols-[110px,1.4fr,1fr,130px,44px]">
+                                        <div key={entry.id} className="grid gap-3 rounded-xl border border-zinc-200 bg-zinc-50 p-3 xl:grid-cols-[110px,1.4fr,1fr,130px,44px]">
                                             <div className="space-y-2">
                                                 <Label className="text-xs text-zinc-500">Tipo</Label>
                                                 <Select
@@ -458,7 +459,7 @@ export function WeeklySlotDialog({
                                             </div>
 
                                             {entry.participantType === 'student' ? (
-                                                <div className="space-y-2 md:col-span-2">
+                                                <div className="space-y-2 xl:col-span-2">
                                                     <Label className="text-xs text-zinc-500">Buscar aluno</Label>
                                                     <Input
                                                         value={entry.search}
@@ -552,8 +553,9 @@ export function WeeklySlotDialog({
                             )}
                         </div>
                     </div>
+                    </div>
 
-                    <DialogFooter className="flex items-center justify-between">
+                    <DialogFooter className="shrink-0 border-t border-zinc-200 bg-white px-4 py-4 sm:px-6 sm:justify-between">
                         <div>
                             {slot?.id && (
                                 <Button type="button" variant="outline" onClick={handleDelete} isLoading={isPending}>
