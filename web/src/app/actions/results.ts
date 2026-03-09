@@ -27,15 +27,15 @@ async function checkAuth() {
 export async function createProtocol(input: CreateProtocolInput) {
     const { supabase, user } = await checkAuth();
 
-    // Verify manager role
+    // Verify role
     const { data: profile } = await supabase
         .from('profiles')
         .select('role')
         .eq('id', user.id)
         .single();
 
-    if (profile?.role !== 'manager') {
-        throw new Error('Only managers can create protocols');
+    if (!profile || !['manager', 'trainer'].includes(profile.role)) {
+        throw new Error('Only managers and trainers can create protocols');
     }
 
     // 1. Create Protocol
@@ -77,7 +77,8 @@ export async function createProtocol(input: CreateProtocolInput) {
         }
     }
 
-    revalidatePath('/dashboard/manager/results');
+    revalidatePath('/dashboard/manager/results/types');
+    revalidatePath('/dashboard/trainer/results/types');
     return protocol as AssessmentProtocol;
 }
 
@@ -112,15 +113,15 @@ import type { UpdateProtocolInput } from '@/types/database';
 export async function deleteProtocol(protocolId: string) {
     const { supabase, user } = await checkAuth();
 
-    // Verify manager
+    // Verify role
     const { data: profile } = await supabase
         .from('profiles')
         .select('role')
         .eq('id', user.id)
         .single();
 
-    if (profile?.role !== 'manager') {
-        throw new Error('Only managers can delete protocols');
+    if (!profile || !['manager', 'trainer'].includes(profile.role)) {
+        throw new Error('Only managers and trainers can archive protocols');
     }
 
     // Soft delete
@@ -134,21 +135,22 @@ export async function deleteProtocol(protocolId: string) {
         throw new Error('Failed to delete protocol');
     }
 
-    revalidatePath('/dashboard/manager/results');
+    revalidatePath('/dashboard/manager/results/types');
+    revalidatePath('/dashboard/trainer/results/types');
 }
 
 export async function updateProtocol(input: UpdateProtocolInput) {
     const { supabase, user } = await checkAuth();
 
-    // Verify manager
+    // Verify role
     const { data: profile } = await supabase
         .from('profiles')
         .select('role')
         .eq('id', user.id)
         .single();
 
-    if (profile?.role !== 'manager') {
-        throw new Error('Only managers can update protocols');
+    if (!profile || !['manager', 'trainer'].includes(profile.role)) {
+        throw new Error('Only managers and trainers can update protocols');
     }
 
     // 1. Update Protocol Fields
@@ -230,7 +232,8 @@ export async function updateProtocol(input: UpdateProtocolInput) {
         }
     }
 
-    revalidatePath('/dashboard/manager/results');
+    revalidatePath('/dashboard/manager/results/types');
+    revalidatePath('/dashboard/trainer/results/types');
 }
 
 // ==========================================

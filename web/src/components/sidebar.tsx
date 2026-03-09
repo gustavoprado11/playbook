@@ -53,6 +53,7 @@ export function Sidebar({ role, userName }: SidebarProps) {
     const trainerActiveLinks: NavItem[] = [
         { href: '/dashboard/trainer', label: 'Meu Desempenho', icon: LayoutDashboard },
         { href: '/dashboard/trainer/students', label: 'Meus Alunos', icon: Users },
+        { href: '/dashboard/trainer/results/types', label: 'Protocolos', icon: TrendingUp },
     ];
 
     // Evolution items (disabled)
