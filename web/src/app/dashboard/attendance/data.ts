@@ -32,7 +32,7 @@ export interface AttendancePageData {
 async function fetchStudentsAndTrainers(supabase: any, trainerId?: string | null) {
     let studentsQuery = supabase
         .from('students')
-        .select('*, trainer:trainers(*, profile:profiles(*))')
+        .select('*, trainer:trainers!students_trainer_id_fkey(*, profile:profiles(*))')
         .eq('status', 'active')
         .eq('is_archived', false)
         .order('full_name');
@@ -74,7 +74,7 @@ async function fetchBaseAgenda(supabase: any, trainerId?: string | null) {
     const { data: entries } = slotIds.length > 0
         ? await supabase
             .from('schedule_base_entries')
-            .select('*, student:students(*, trainer:trainers(*, profile:profiles(*)))')
+            .select('*, student:students(*, trainer:trainers!students_trainer_id_fkey(*, profile:profiles(*)))')
             .in('slot_id', slotIds)
             .order('position')
         : { data: [] };
@@ -112,7 +112,7 @@ async function fetchWeekAgenda(supabase: any, weekStart: string, trainerId?: str
     const { data: entries } = slotIds.length > 0
         ? await supabase
             .from('schedule_week_entries')
-            .select('*, student:students(*, trainer:trainers(*, profile:profiles(*)))')
+            .select('*, student:students(*, trainer:trainers!students_trainer_id_fkey(*, profile:profiles(*)))')
             .in('week_slot_id', slotIds)
             .order('position')
         : { data: [] };

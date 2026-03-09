@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useTransition } from 'react';
+import { useEffect, useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -9,14 +9,24 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { archiveBaseScheduleSlot, deletePublicWeekScheduleSlot, deleteWeekScheduleSlot, upsertBaseScheduleSlot, upsertPublicWeekScheduleSlot, upsertWeekScheduleSlot } from '@/app/actions/attendance';
+import {
+    archiveBaseScheduleSlot,
+    archivePublicBaseScheduleSlot,
+    deletePublicWeekScheduleSlot,
+    deleteWeekScheduleSlot,
+    upsertBaseScheduleSlot,
+    upsertPublicBaseScheduleSlot,
+    upsertPublicWeekScheduleSlot,
+    upsertWeekScheduleSlot,
+} from '@/app/actions/attendance';
 import { WEEKDAY_OPTIONS } from '@/lib/attendance';
 import type { AttendanceStatus, Profile, ScheduleBaseSlot, ScheduleParticipant, ScheduleWeekSlot, Student, Trainer } from '@/types/database';
 
 type JoinedStudent = Student & { trainer: Trainer & { profile: Profile } };
 type JoinedTrainer = Trainer & { profile: Profile };
+type EditableEntry = ScheduleParticipant & { student?: JoinedStudent | null };
 type EditableSlot = (ScheduleBaseSlot | ScheduleWeekSlot) & {
-    entries?: ScheduleParticipant[];
+    entries?: EditableEntry[];
 };
 
 interface WeeklySlotDialogProps {
@@ -31,6 +41,13 @@ interface WeeklySlotDialogProps {
     trainers: JoinedTrainer[];
     defaultTrainerId?: string;
     weekStart?: string;
+    autoAddEntry?: boolean;
+}
+
+interface DraftSlotRow {
+    id: string;
+    startTime: string;
+    capacity: string;
 }
 
 interface DraftEntry {
@@ -40,7 +57,11 @@ interface DraftEntry {
     guest_name?: string;
     guest_origin?: string;
     status: AttendanceStatus;
+    search: string;
 }
+
+const DEFAULT_CAPACITY = '4';
+const DEFAULT_TIME = '06:00';
 
 export function WeeklySlotDialog({
     open,
@@ -54,45 +75,97 @@ export function WeeklySlotDialog({
     trainers,
     defaultTrainerId,
     weekStart,
+    autoAddEntry = false,
 }: WeeklySlotDialogProps) {
     const router = useRouter();
     const [isPending, startTransition] = useTransition();
     const [trainerId, setTrainerId] = useState('');
     const [weekday, setWeekday] = useState('1');
-    const [startTime, setStartTime] = useState('06:00');
-    const [capacity, setCapacity] = useState('4');
     const [notes, setNotes] = useState('');
+    const [slotRows, setSlotRows] = useState<DraftSlotRow[]>([]);
     const [entries, setEntries] = useState<DraftEntry[]>([]);
+    const [focusEntryId, setFocusEntryId] = useState<string | null>(null);
+
+    const allowsBatchCreation = !slot?.id;
+    const selectedTrainerStudents = useMemo(() => (
+        students.filter((student) => !trainerId || student.trainer_id === trainerId)
+    ), [students, trainerId]);
 
     useEffect(() => {
         if (!open) return;
 
+        const entrySeed: DraftEntry[] = ((slot?.entries || []) as EditableEntry[]).map((entry, index) => ({
+            id: entry.id || `${index + 1}`,
+            participantType: entry.student_id ? 'student' as const : 'guest' as const,
+            student_id: entry.student_id,
+            guest_name: entry.guest_name,
+            guest_origin: entry.guest_origin,
+            status: entry.status || 'pending',
+            search: entry.student?.full_name || entry.guest_name || '',
+        }));
+
+        let nextFocusId: string | null = null;
+
+        if (autoAddEntry && (!slot?.capacity || entrySeed.length < slot.capacity)) {
+            nextFocusId = crypto.randomUUID();
+            entrySeed.push({
+                id: nextFocusId,
+                participantType: 'student',
+                student_id: undefined,
+                guest_name: undefined,
+                guest_origin: undefined,
+                status: mode === 'week' ? 'pending' : 'pending',
+                search: '',
+            });
+        }
+
         setTrainerId(slot?.trainer_id || defaultTrainerId || trainers[0]?.id || '');
         setWeekday(slot ? String(slot.weekday) : '1');
-        setStartTime(slot?.start_time?.slice(0, 5) || '06:00');
-        setCapacity(String(slot?.capacity || 4));
         setNotes(slot?.notes || '');
-        setEntries(
-            (slot?.entries || []).map((entry, index) => ({
-                id: entry.id || `${index + 1}`,
-                participantType: entry.student_id ? 'student' : 'guest',
-                student_id: entry.student_id,
-                guest_name: entry.guest_name,
-                guest_origin: entry.guest_origin,
-                status: entry.status || 'pending',
-            }))
-        );
-    }, [defaultTrainerId, open, slot, trainers]);
+        setSlotRows([
+            {
+                id: slot?.id || crypto.randomUUID(),
+                startTime: slot?.start_time?.slice(0, 5) || DEFAULT_TIME,
+                capacity: String(slot?.capacity || Number(DEFAULT_CAPACITY)),
+            },
+        ]);
+        setEntries(entrySeed);
+        setFocusEntryId(nextFocusId);
+    }, [autoAddEntry, defaultTrainerId, mode, open, slot, trainers]);
 
-    function addEntry() {
-        setEntries((current) => [
+    function updateSlotRow(rowId: string, patch: Partial<DraftSlotRow>) {
+        setSlotRows((current) => current.map((row) => (
+            row.id === rowId ? { ...row, ...patch } : row
+        )));
+    }
+
+    function addSlotRow() {
+        setSlotRows((current) => [
             ...current,
             {
                 id: crypto.randomUUID(),
-                participantType: 'student',
-                status: 'pending',
+                startTime: current[current.length - 1]?.startTime || DEFAULT_TIME,
+                capacity: current[current.length - 1]?.capacity || DEFAULT_CAPACITY,
             },
         ]);
+    }
+
+    function removeSlotRow(rowId: string) {
+        setSlotRows((current) => current.length === 1 ? current : current.filter((row) => row.id !== rowId));
+    }
+
+    function addEntry(prefill = '') {
+        const nextId = crypto.randomUUID();
+        setEntries((current) => [
+            ...current,
+            {
+                id: nextId,
+                participantType: 'student',
+                status: 'pending',
+                search: prefill,
+            },
+        ]);
+        setFocusEntryId(nextId);
     }
 
     function updateEntry(entryId: string, patch: Partial<DraftEntry>) {
@@ -103,6 +176,40 @@ export function WeeklySlotDialog({
 
     function removeEntry(entryId: string) {
         setEntries((current) => current.filter((entry) => entry.id !== entryId));
+    }
+
+    function getStudentMatches(query: string) {
+        const normalized = query.trim().toLowerCase();
+        if (!normalized) return [];
+
+        return selectedTrainerStudents
+            .filter((student) => student.full_name.toLowerCase().includes(normalized))
+            .sort((a, b) => {
+                const aStarts = a.full_name.toLowerCase().startsWith(normalized) ? 0 : 1;
+                const bStarts = b.full_name.toLowerCase().startsWith(normalized) ? 0 : 1;
+                return aStarts - bStarts || a.full_name.localeCompare(b.full_name);
+            })
+            .slice(0, 6);
+    }
+
+    function chooseStudent(entryId: string, student: JoinedStudent) {
+        updateEntry(entryId, {
+            participantType: 'student',
+            student_id: student.id,
+            guest_name: '',
+            guest_origin: '',
+            search: student.full_name,
+        });
+    }
+
+    function convertEntryToGuest(entry: DraftEntry) {
+        const fallbackName = entry.search.trim();
+        updateEntry(entry.id, {
+            participantType: 'guest',
+            student_id: undefined,
+            guest_name: fallbackName,
+            search: fallbackName,
+        });
     }
 
     function buildPayloadEntries(): ScheduleParticipant[] {
@@ -118,20 +225,39 @@ export function WeeklySlotDialog({
     function handleSave(event: React.FormEvent) {
         event.preventDefault();
 
+        const normalizedRows = slotRows.map((row) => ({
+            start_time: row.startTime,
+            capacity: Number(row.capacity),
+        }));
+
+        if (normalizedRows.some((row) => !row.start_time || Number.isNaN(row.capacity) || row.capacity < 1)) {
+            toast.error('Preencha horario e vagas corretamente');
+            return;
+        }
+
+        const effectiveEntries = normalizedRows.length === 1 ? buildPayloadEntries() : [];
+        if (normalizedRows.length === 1 && effectiveEntries.length > normalizedRows[0].capacity) {
+            toast.error('A quantidade de participantes nao pode passar das vagas do horario');
+            return;
+        }
+
         startTransition(async () => {
             try {
                 const payload = {
                     slot_id: slot?.id,
                     trainer_id: role === 'manager' || publicMode ? trainerId : undefined,
                     weekday: Number(weekday),
-                    start_time: startTime,
-                    capacity: Number(capacity),
+                    start_time: normalizedRows[0].start_time,
+                    capacity: normalizedRows[0].capacity,
                     notes,
                     week_start: mode === 'week' ? weekStart : undefined,
-                    entries: buildPayloadEntries(),
+                    batch_slots: normalizedRows,
+                    entries: effectiveEntries,
                 };
 
-                if (mode === 'base') {
+                if (mode === 'base' && publicMode && publicToken) {
+                    await upsertPublicBaseScheduleSlot(publicToken, payload);
+                } else if (mode === 'base') {
                     await upsertBaseScheduleSlot(payload);
                 } else if (publicMode && publicToken) {
                     await upsertPublicWeekScheduleSlot(publicToken, payload);
@@ -154,7 +280,9 @@ export function WeeklySlotDialog({
 
         startTransition(async () => {
             try {
-                if (mode === 'base') {
+                if (mode === 'base' && publicMode && publicToken) {
+                    await archivePublicBaseScheduleSlot(publicToken, slot.id);
+                } else if (mode === 'base') {
                     await archiveBaseScheduleSlot(slot.id);
                 } else if (publicMode && publicToken) {
                     await deletePublicWeekScheduleSlot(publicToken, slot.id);
@@ -172,18 +300,20 @@ export function WeeklySlotDialog({
         });
     }
 
+    const showParticipants = slotRows.length === 1;
+
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="max-w-4xl bg-white">
+            <DialogContent className="max-w-5xl bg-white">
                 <DialogHeader>
                     <DialogTitle>{mode === 'base' ? 'Editar horario fixo' : 'Editar horario da semana'}</DialogTitle>
                     <DialogDescription>
-                        Trabalhe como planilha: ajuste horario, vagas e lista de nomes da celula selecionada.
+                        Trabalhe como planilha: ajuste horarios, vagas e lista de nomes da celula selecionada.
                     </DialogDescription>
                 </DialogHeader>
 
                 <form onSubmit={handleSave} className="space-y-6">
-                    <div className="grid gap-4 md:grid-cols-4">
+                    <div className="grid gap-4 md:grid-cols-3">
                         {(role === 'manager' || publicMode) && (
                             <div className="space-y-2 md:col-span-2">
                                 <Label>Treinador</Label>
@@ -217,9 +347,54 @@ export function WeeklySlotDialog({
                                 </SelectContent>
                             </Select>
                         </div>
+                    </div>
 
-                        <Input type="time" label="Horario" value={startTime} onChange={(event) => setStartTime(event.target.value)} required />
-                        <Input type="number" label="Vagas" min={1} max={30} value={capacity} onChange={(event) => setCapacity(event.target.value)} required />
+                    <div className="rounded-2xl border border-zinc-200">
+                        <div className="flex items-center justify-between border-b border-zinc-200 px-4 py-3">
+                            <div>
+                                <p className="text-sm font-semibold text-zinc-900">Horarios e vagas</p>
+                                <p className="text-xs text-zinc-500">
+                                    {allowsBatchCreation
+                                        ? 'Crie varios horarios de uma vez com sua capacidade individual.'
+                                        : 'Ajuste o horario e as vagas desta celula.'}
+                                </p>
+                            </div>
+                            {allowsBatchCreation && (
+                                <Button type="button" variant="outline" size="sm" onClick={addSlotRow}>
+                                    Adicionar horario
+                                </Button>
+                            )}
+                        </div>
+
+                        <div className="space-y-3 p-4">
+                            {slotRows.map((row, index) => (
+                                <div key={row.id} className="grid gap-3 rounded-xl border border-zinc-200 bg-zinc-50 p-3 md:grid-cols-[1fr,160px,44px]">
+                                    <Input
+                                        type="time"
+                                        label={index === 0 ? 'Horario' : `Horario ${index + 1}`}
+                                        value={row.startTime}
+                                        onChange={(event) => updateSlotRow(row.id, { startTime: event.target.value })}
+                                        required
+                                    />
+                                    <Input
+                                        type="number"
+                                        label="Vagas"
+                                        min={1}
+                                        max={30}
+                                        value={row.capacity}
+                                        onChange={(event) => updateSlotRow(row.id, { capacity: event.target.value })}
+                                        required
+                                    />
+                                    <div className="flex items-end">
+                                        {allowsBatchCreation && (
+                                            <Button type="button" variant="ghost" size="icon" onClick={() => removeSlotRow(row.id)} disabled={slotRows.length === 1}>
+                                                x
+                                            </Button>
+                                        )}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
                     </div>
 
                     <div className="space-y-2">
@@ -231,101 +406,149 @@ export function WeeklySlotDialog({
                         <div className="flex items-center justify-between border-b border-zinc-200 px-4 py-3">
                             <div>
                                 <p className="text-sm font-semibold text-zinc-900">Participantes do horario</p>
-                                <p className="text-xs text-zinc-500">Preencha somente as linhas ocupadas. As vagas restantes continuam livres.</p>
+                                <p className="text-xs text-zinc-500">
+                                    {showParticipants
+                                        ? 'Clique em vaga livre na grade ou adicione nomes aqui. Ao digitar, a busca local procura alunos e pode virar avulso.'
+                                        : 'Quando criar varios horarios ao mesmo tempo, salve primeiro. Depois use cada celula para preencher os participantes.'}
+                                </p>
                             </div>
-                            <Button type="button" variant="outline" size="sm" onClick={addEntry}>
-                                Adicionar nome
-                            </Button>
+                            {showParticipants && (
+                                <Button type="button" variant="outline" size="sm" onClick={() => addEntry()}>
+                                    Adicionar nome
+                                </Button>
+                            )}
                         </div>
 
                         <div className="space-y-3 p-4">
-                            {entries.length === 0 ? (
+                            {!showParticipants ? (
+                                <div className="rounded-xl border border-dashed border-zinc-300 px-4 py-8 text-center text-sm text-zinc-500">
+                                    Crie os horarios em lote e depois clique na celula desejada para preencher as vagas.
+                                </div>
+                            ) : entries.length === 0 ? (
                                 <div className="rounded-xl border border-dashed border-zinc-300 px-4 py-8 text-center text-sm text-zinc-500">
                                     Nenhum nome alocado ainda. Crie o horario vazio ou adicione participantes.
                                 </div>
                             ) : (
-                                entries.map((entry, index) => (
-                                    <div key={entry.id} className="grid gap-3 rounded-xl border border-zinc-200 bg-zinc-50 p-3 md:grid-cols-[110px,1fr,1fr,130px,44px]">
-                                        <div className="space-y-2">
-                                            <Label className="text-xs text-zinc-500">Tipo</Label>
-                                            <Select value={entry.participantType} onValueChange={(value) => updateEntry(entry.id, {
-                                                participantType: value as 'student' | 'guest',
-                                                student_id: undefined,
-                                                guest_name: '',
-                                                guest_origin: '',
-                                            })}>
-                                                <SelectTrigger>
-                                                    <SelectValue />
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                    <SelectItem value="student">Aluno</SelectItem>
-                                                    <SelectItem value="guest">Avulso</SelectItem>
-                                                </SelectContent>
-                                            </Select>
-                                        </div>
+                                entries.map((entry, index) => {
+                                    const matches = entry.participantType === 'student' ? getStudentMatches(entry.search) : [];
+                                    const hasExactStudent = Boolean(entry.student_id);
+                                    const canConvertToGuest = entry.participantType === 'student' && Boolean(entry.search.trim()) && !hasExactStudent;
 
-                                        {entry.participantType === 'student' ? (
-                                            <div className="space-y-2 md:col-span-2">
-                                                <Label className="text-xs text-zinc-500">Aluno</Label>
-                                                <Select value={entry.student_id || ''} onValueChange={(value) => updateEntry(entry.id, { student_id: value })}>
-                                                    <SelectTrigger>
-                                                        <SelectValue placeholder="Selecione o aluno" />
-                                                    </SelectTrigger>
-                                                    <SelectContent>
-                                                        {students.map((student) => (
-                                                            <SelectItem key={student.id} value={student.id}>
-                                                                {student.full_name}
-                                                            </SelectItem>
-                                                        ))}
-                                                    </SelectContent>
-                                                </Select>
-                                            </div>
-                                        ) : (
-                                            <>
-                                                <Input
-                                                    label="Nome"
-                                                    value={entry.guest_name || ''}
-                                                    onChange={(event) => updateEntry(entry.id, { guest_name: event.target.value })}
-                                                    placeholder="Nome avulso"
-                                                />
-                                                <Input
-                                                    label="Origem"
-                                                    value={entry.guest_origin || ''}
-                                                    onChange={(event) => updateEntry(entry.id, { guest_origin: event.target.value })}
-                                                    placeholder="Experimental, outra unidade..."
-                                                />
-                                            </>
-                                        )}
-
-                                        {mode === 'week' ? (
+                                    return (
+                                        <div key={entry.id} className="grid gap-3 rounded-xl border border-zinc-200 bg-zinc-50 p-3 md:grid-cols-[110px,1.4fr,1fr,130px,44px]">
                                             <div className="space-y-2">
-                                                <Label className="text-xs text-zinc-500">Status</Label>
-                                                <Select value={entry.status} onValueChange={(value) => updateEntry(entry.id, { status: value as AttendanceStatus })}>
+                                                <Label className="text-xs text-zinc-500">Tipo</Label>
+                                                <Select
+                                                    value={entry.participantType}
+                                                    onValueChange={(value) => updateEntry(entry.id, {
+                                                        participantType: value as 'student' | 'guest',
+                                                        student_id: undefined,
+                                                        guest_name: value === 'guest' ? entry.search : '',
+                                                        guest_origin: '',
+                                                    })}
+                                                >
                                                     <SelectTrigger>
                                                         <SelectValue />
                                                     </SelectTrigger>
                                                     <SelectContent>
-                                                        <SelectItem value="pending">-</SelectItem>
-                                                        <SelectItem value="present">OK</SelectItem>
-                                                        <SelectItem value="absent">Falta</SelectItem>
+                                                        <SelectItem value="student">Aluno</SelectItem>
+                                                        <SelectItem value="guest">Avulso</SelectItem>
                                                     </SelectContent>
                                                 </Select>
                                             </div>
-                                        ) : (
-                                            <div className="flex items-end">
-                                                <div className="rounded-lg bg-white px-3 py-2 text-xs font-medium text-zinc-500 ring-1 ring-zinc-200">
-                                                    #{index + 1}
-                                                </div>
-                                            </div>
-                                        )}
 
-                                        <div className="flex items-end">
-                                            <Button type="button" variant="ghost" size="icon" onClick={() => removeEntry(entry.id)}>
-                                                x
-                                            </Button>
+                                            {entry.participantType === 'student' ? (
+                                                <div className="space-y-2 md:col-span-2">
+                                                    <Label className="text-xs text-zinc-500">Buscar aluno</Label>
+                                                    <Input
+                                                        value={entry.search}
+                                                        autoFocus={entry.id === focusEntryId}
+                                                        onChange={(event) => updateEntry(entry.id, {
+                                                            search: event.target.value,
+                                                            student_id: undefined,
+                                                        })}
+                                                        placeholder="Digite o nome do aluno"
+                                                    />
+
+                                                    {matches.length > 0 && (
+                                                        <div className="rounded-xl border border-zinc-200 bg-white p-1">
+                                                            {matches.map((student) => (
+                                                                <button
+                                                                    key={student.id}
+                                                                    type="button"
+                                                                    onClick={() => chooseStudent(entry.id, student)}
+                                                                    className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm transition hover:bg-zinc-50"
+                                                                >
+                                                                    <span className="font-medium text-zinc-900">{student.full_name}</span>
+                                                                    <span className="text-[11px] uppercase tracking-[0.18em] text-zinc-500">
+                                                                        {student.trainer?.profile?.full_name || 'Aluno'}
+                                                                    </span>
+                                                                </button>
+                                                            ))}
+                                                        </div>
+                                                    )}
+
+                                                    {canConvertToGuest && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => convertEntryToGuest(entry)}
+                                                            className="rounded-lg border border-dashed border-zinc-300 px-3 py-2 text-sm text-zinc-600 transition hover:border-emerald-300 hover:text-emerald-700"
+                                                        >
+                                                            Manter "{entry.search.trim()}" como avulso
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            ) : (
+                                                <>
+                                                    <Input
+                                                        label="Nome"
+                                                        value={entry.guest_name || ''}
+                                                        autoFocus={entry.id === focusEntryId}
+                                                        onChange={(event) => updateEntry(entry.id, {
+                                                            guest_name: event.target.value,
+                                                            search: event.target.value,
+                                                        })}
+                                                        placeholder="Nome avulso"
+                                                    />
+                                                    <Input
+                                                        label="Origem"
+                                                        value={entry.guest_origin || ''}
+                                                        onChange={(event) => updateEntry(entry.id, { guest_origin: event.target.value })}
+                                                        placeholder="Experimental, outra unidade..."
+                                                    />
+                                                </>
+                                            )}
+
+                                            {mode === 'week' ? (
+                                                <div className="space-y-2">
+                                                    <Label className="text-xs text-zinc-500">Status</Label>
+                                                    <Select value={entry.status} onValueChange={(value) => updateEntry(entry.id, { status: value as AttendanceStatus })}>
+                                                        <SelectTrigger>
+                                                            <SelectValue />
+                                                        </SelectTrigger>
+                                                        <SelectContent>
+                                                            <SelectItem value="pending">-</SelectItem>
+                                                            <SelectItem value="present">OK</SelectItem>
+                                                            <SelectItem value="absent">Falta</SelectItem>
+                                                        </SelectContent>
+                                                    </Select>
+                                                </div>
+                                            ) : (
+                                                <div className="flex items-end">
+                                                    <div className="rounded-lg bg-white px-3 py-2 text-xs font-medium text-zinc-500 ring-1 ring-zinc-200">
+                                                        #{index + 1}
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            <div className="flex items-end">
+                                                <Button type="button" variant="ghost" size="icon" onClick={() => removeEntry(entry.id)}>
+                                                    x
+                                                </Button>
+                                            </div>
                                         </div>
-                                    </div>
-                                ))
+                                    );
+                                })
                             )}
                         </div>
                     </div>

@@ -436,6 +436,10 @@ export interface UpsertScheduleSlotInput {
   capacity: number;
   notes?: string;
   week_start?: string;
+  batch_slots?: {
+    start_time: string;
+    capacity: number;
+  }[];
   entries: ScheduleParticipant[];
 }
 

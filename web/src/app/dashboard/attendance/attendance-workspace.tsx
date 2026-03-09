@@ -1,7 +1,8 @@
 'use client';
 
-import { useMemo, useState, useTransition } from 'react';
+import { useEffect, useMemo, useState, useTransition } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { addDays, format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { CalendarDays, ChevronLeft, ChevronRight, Copy, ExternalLink, KeyRound, Plus, RefreshCw, Users } from 'lucide-react';
@@ -67,10 +68,12 @@ export function AttendanceWorkspace({
     publicToken,
     publicLabel,
 }: AttendanceWorkspaceProps) {
+    const router = useRouter();
     const [tab, setTab] = useState<TabMode>('week');
     const [selectedTrainer, setSelectedTrainer] = useState('all');
     const [editingMode, setEditingMode] = useState<TabMode>('week');
     const [editingSlot, setEditingSlot] = useState<BaseSlot | WeekSlot | undefined>();
+    const [autoAddEntry, setAutoAddEntry] = useState(false);
     const [dialogOpen, setDialogOpen] = useState(false);
     const [linkState, setLinkState] = useState(publicLink);
     const [isPending, startTransition] = useTransition();
@@ -127,6 +130,7 @@ export function AttendanceWorkspace({
 
     function openNewSlot(mode: TabMode, weekday?: number, startTime?: string) {
         setEditingMode(mode);
+        setAutoAddEntry(false);
         setEditingSlot(weekday ? ({
             id: '',
             trainer_id: selectedTrainer === 'all' ? trainers[0]?.id || '' : selectedTrainer,
@@ -146,6 +150,14 @@ export function AttendanceWorkspace({
     function openExistingSlot(mode: TabMode, slot: BaseSlot | WeekSlot) {
         setEditingMode(mode);
         setEditingSlot(slot);
+        setAutoAddEntry(false);
+        setDialogOpen(true);
+    }
+
+    function openVacancy(mode: TabMode, slot: BaseSlot | WeekSlot) {
+        setEditingMode(mode);
+        setEditingSlot(slot);
+        setAutoAddEntry(true);
         setDialogOpen(true);
     }
 
@@ -180,6 +192,26 @@ export function AttendanceWorkspace({
         await navigator.clipboard.writeText(receptionistUrl);
         toast.success('Link copiado');
     }
+
+    useEffect(() => {
+        function refreshAgenda() {
+            if (dialogOpen || isPending || document.visibilityState !== 'visible') {
+                return;
+            }
+
+            router.refresh();
+        }
+
+        const intervalId = window.setInterval(refreshAgenda, 15000);
+        window.addEventListener('focus', refreshAgenda);
+        document.addEventListener('visibilitychange', refreshAgenda);
+
+        return () => {
+            window.clearInterval(intervalId);
+            window.removeEventListener('focus', refreshAgenda);
+            document.removeEventListener('visibilitychange', refreshAgenda);
+        };
+    }, [dialogOpen, isPending, router]);
 
     return (
         <div className="space-y-6">
@@ -270,6 +302,7 @@ export function AttendanceWorkspace({
                         weekSlots={trainerFilteredWeek}
                         onNewCell={openNewSlot}
                         onEditCell={openExistingSlot}
+                        onVacancyClick={openVacancy}
                         participantName={participantName}
                         participantMeta={participantMeta}
                     />
@@ -336,6 +369,7 @@ export function AttendanceWorkspace({
                 trainers={trainers}
                 defaultTrainerId={selectedTrainer === 'all' ? undefined : selectedTrainer}
                 weekStart={weekStart}
+                autoAddEntry={autoAddEntry}
             />
         </div>
     );
@@ -349,6 +383,7 @@ function SpreadsheetGrid({
     weekSlots,
     onNewCell,
     onEditCell,
+    onVacancyClick,
     participantName,
     participantMeta,
 }: {
@@ -359,6 +394,7 @@ function SpreadsheetGrid({
     weekSlots: WeekSlot[];
     onNewCell: (mode: TabMode, weekday?: number, startTime?: string) => void;
     onEditCell: (mode: TabMode, slot: BaseSlot | WeekSlot) => void;
+    onVacancyClick: (mode: TabMode, slot: BaseSlot | WeekSlot) => void;
     participantName: (entry: { student?: JoinedStudent | null; guest_name?: string | null }) => string;
     participantMeta: (entry: { student?: JoinedStudent | null; guest_origin?: string | null }, slotTrainerName?: string) => string;
 }) {
@@ -399,6 +435,7 @@ function SpreadsheetGrid({
                             slots={slots}
                             onNewCell={onNewCell}
                             onEditCell={onEditCell}
+                            onVacancyClick={onVacancyClick}
                             participantName={participantName}
                             participantMeta={participantMeta}
                         />
@@ -416,6 +453,7 @@ function GridRow({
     slots,
     onNewCell,
     onEditCell,
+    onVacancyClick,
     participantName,
     participantMeta,
 }: {
@@ -425,6 +463,7 @@ function GridRow({
     slots: (BaseSlot | WeekSlot)[];
     onNewCell: (mode: TabMode, weekday?: number, startTime?: string) => void;
     onEditCell: (mode: TabMode, slot: BaseSlot | WeekSlot) => void;
+    onVacancyClick: (mode: TabMode, slot: BaseSlot | WeekSlot) => void;
     participantName: (entry: any) => string;
     participantMeta: (entry: any, trainerName?: string) => string;
 }) {
@@ -456,11 +495,9 @@ function GridRow({
                     >
                         <div className="space-y-3">
                             {cellSlots.map((slot) => (
-                                <button
+                                <div
                                     key={slot.id}
-                                    type="button"
-                                    onClick={() => onEditCell(mode, slot)}
-                                    className="w-full rounded-xl border border-zinc-200 bg-zinc-50 p-3 text-left transition hover:border-emerald-300 hover:bg-white hover:shadow-sm"
+                                    className="rounded-xl border border-zinc-200 bg-zinc-50 p-3 text-left transition hover:border-emerald-300 hover:bg-white hover:shadow-sm"
                                 >
                                     <div className="flex items-center justify-between gap-3">
                                         <div className="space-y-1">
@@ -474,7 +511,13 @@ function GridRow({
                                                 {slot.entries.length}/{slot.capacity}
                                             </div>
                                         </div>
-                                        <div className="text-xs font-medium text-zinc-400">Editar</div>
+                                        <button
+                                            type="button"
+                                            onClick={() => onEditCell(mode, slot)}
+                                            className="text-xs font-medium text-zinc-400 transition hover:text-emerald-700"
+                                        >
+                                            Editar
+                                        </button>
                                     </div>
 
                                     <div className="mt-4 space-y-2">
@@ -483,9 +526,14 @@ function GridRow({
 
                                             if (!entry) {
                                                 return (
-                                                    <div key={index} className="rounded-lg border border-dashed border-zinc-200 px-3 py-2 text-xs text-zinc-350">
+                                                    <button
+                                                        key={index}
+                                                        type="button"
+                                                        onClick={() => onVacancyClick(mode, slot)}
+                                                        className="w-full rounded-lg border border-dashed border-zinc-200 px-3 py-2 text-left text-xs text-zinc-400 transition hover:border-emerald-300 hover:text-emerald-700"
+                                                    >
                                                         Vaga livre
-                                                    </div>
+                                                    </button>
                                                 );
                                             }
 
@@ -504,7 +552,7 @@ function GridRow({
                                             );
                                         })}
                                     </div>
-                                </button>
+                                </div>
                             ))}
 
                             <button
