@@ -436,9 +436,9 @@ function GridRow({
                 {formatTimeLabel(time)}
             </div>
             {weekDays.map((day) => {
-                const slot = slots.find((item) => item.weekday === day.value && item.start_time === time);
+                const cellSlots = slots.filter((item) => item.weekday === day.value && item.start_time === time);
 
-                if (!slot) {
+                if (cellSlots.length === 0) {
                     return (
                         <button
                             key={`${time}-${day.isoDate}`}
@@ -452,48 +452,72 @@ function GridRow({
                 }
 
                 return (
-                    <button
-                        key={slot.id}
-                        type="button"
-                        onClick={() => onEditCell(mode, slot)}
-                        className="min-h-[150px] rounded-2xl border border-zinc-200 bg-white p-4 text-left shadow-sm transition hover:border-emerald-300 hover:shadow-md"
+                    <div
+                        key={`${time}-${day.isoDate}`}
+                        className="min-h-[150px] rounded-2xl border border-zinc-200 bg-white p-3 text-left shadow-sm"
                     >
-                        <div className="flex items-center justify-between gap-3">
-                            <div className="inline-flex items-center gap-2 rounded-full bg-zinc-100 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-zinc-600">
-                                <Users className="h-3.5 w-3.5" />
-                                {slot.entries.length}/{slot.capacity}
-                            </div>
-                            <div className="text-xs font-medium text-zinc-400">Editar</div>
-                        </div>
-
-                        <div className="mt-4 space-y-2">
-                            {Array.from({ length: slot.capacity }).map((_, index) => {
-                                const entry = slot.entries[index];
-
-                                if (!entry) {
-                                    return (
-                                        <div key={index} className="rounded-lg border border-dashed border-zinc-200 px-3 py-2 text-xs text-zinc-350">
-                                            Vaga livre
-                                        </div>
-                                    );
-                                }
-
-                                return (
-                                    <div key={entry.id} className="rounded-lg bg-zinc-50 px-3 py-2">
-                                        <div className="flex items-center justify-between gap-2">
-                                            <p className="truncate text-sm font-medium text-zinc-900">{participantName(entry)}</p>
-                                            {'status' in entry && (
-                                                <StatusMark status={entry.status} />
+                        <div className="space-y-3">
+                            {cellSlots.map((slot) => (
+                                <button
+                                    key={slot.id}
+                                    type="button"
+                                    onClick={() => onEditCell(mode, slot)}
+                                    className="w-full rounded-xl border border-zinc-200 bg-zinc-50 p-3 text-left transition hover:border-emerald-300 hover:bg-white hover:shadow-sm"
+                                >
+                                    <div className="flex items-center justify-between gap-3">
+                                        <div className="space-y-1">
+                                            {slot.trainer?.profile?.full_name && (
+                                                <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-emerald-700">
+                                                    {slot.trainer.profile.full_name}
+                                                </p>
                                             )}
+                                            <div className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-zinc-600 ring-1 ring-zinc-200">
+                                                <Users className="h-3.5 w-3.5" />
+                                                {slot.entries.length}/{slot.capacity}
+                                            </div>
                                         </div>
-                                        <p className="mt-1 truncate text-[11px] uppercase tracking-[0.2em] text-zinc-500">
-                                            {participantMeta(entry, slot.trainer?.profile?.full_name)}
-                                        </p>
+                                        <div className="text-xs font-medium text-zinc-400">Editar</div>
                                     </div>
-                                );
-                            })}
+
+                                    <div className="mt-4 space-y-2">
+                                        {Array.from({ length: slot.capacity }).map((_, index) => {
+                                            const entry = slot.entries[index];
+
+                                            if (!entry) {
+                                                return (
+                                                    <div key={index} className="rounded-lg border border-dashed border-zinc-200 px-3 py-2 text-xs text-zinc-350">
+                                                        Vaga livre
+                                                    </div>
+                                                );
+                                            }
+
+                                            return (
+                                                <div key={entry.id} className="rounded-lg bg-white px-3 py-2 ring-1 ring-zinc-200">
+                                                    <div className="flex items-center justify-between gap-2">
+                                                        <p className="truncate text-sm font-medium text-zinc-900">{participantName(entry)}</p>
+                                                        {'status' in entry && (
+                                                            <StatusMark status={entry.status} />
+                                                        )}
+                                                    </div>
+                                                    <p className="mt-1 truncate text-[11px] uppercase tracking-[0.2em] text-zinc-500">
+                                                        {participantMeta(entry, slot.trainer?.profile?.full_name)}
+                                                    </p>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </button>
+                            ))}
+
+                            <button
+                                type="button"
+                                onClick={() => onNewCell(mode, day.value, time.slice(0, 5))}
+                                className="w-full rounded-xl border border-dashed border-zinc-300 px-3 py-3 text-center text-xs font-medium text-zinc-500 transition hover:border-emerald-300 hover:text-emerald-700"
+                            >
+                                Adicionar outro treinador
+                            </button>
                         </div>
-                    </button>
+                    </div>
                 );
             })}
         </>
