@@ -103,8 +103,10 @@ export function AttendanceWorkspace({
         let present = 0;
         let absent = 0;
         let pending = 0;
+        let capacity = 0;
 
         source.forEach((slot) => {
+            capacity += slot.capacity;
             slot.entries.forEach((entry) => {
                 if (entry.status === 'present') present += 1;
                 else if (entry.status === 'absent') absent += 1;
@@ -114,6 +116,7 @@ export function AttendanceWorkspace({
 
         return {
             slots: source.length,
+            capacity,
             present,
             absent,
             pending,
@@ -216,84 +219,118 @@ export function AttendanceWorkspace({
     return (
         <div className="space-y-6">
             <section className="overflow-hidden rounded-[28px] border border-zinc-200 bg-white shadow-[0_24px_60px_-42px_rgba(24,24,27,0.32)]">
-                <div className="border-b border-zinc-200 bg-[linear-gradient(135deg,#31552d_0%,#486b36_42%,#7f9a45_100%)] px-6 py-6 text-white">
-                    <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
-                        <div className="max-w-3xl">
-                            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-emerald-100/75">
-                                {publicMode ? 'Recepcao' : 'Planilha operacional'}
-                            </p>
-                            <h1 className="mt-2 font-serif text-3xl leading-tight">
-                                Agenda Propulse
-                            </h1>
-                            <p className="mt-3 text-sm text-emerald-50/85">
-                                {publicMode
-                                    ? 'Edite a semana como uma planilha: inclua nomes, remova vagas e marque presenca sem login.'
-                                    : 'Mantenha uma aba fixa com os horarios recorrentes e uma aba semanal totalmente livre para a operacao.'}
-                            </p>
+                <div className="border-b border-zinc-200 bg-[linear-gradient(135deg,#214728_0%,#406733_44%,#899f47_100%)] text-white">
+                    <div className="grid gap-5 px-5 py-5 lg:grid-cols-[minmax(0,1.6fr)_minmax(300px,0.95fr)] lg:px-6">
+                        <div className="space-y-4">
+                            <div className="flex flex-wrap items-center gap-2">
+                                <p className="text-[11px] font-semibold uppercase tracking-[0.32em] text-emerald-100/80">
+                                    {publicMode ? 'Recepcao' : 'Planilha operacional'}
+                                </p>
+                                <div className="rounded-full border border-white/15 bg-white/10 px-3 py-1 text-[11px] uppercase tracking-[0.22em] text-emerald-50/80">
+                                    Atualizacao automatica ativa
+                                </div>
+                            </div>
+
+                            <div className="max-w-3xl">
+                                <h1 className="font-serif text-[2.35rem] leading-none sm:text-[2.8rem]">
+                                    Agenda Propulse
+                                </h1>
+                                <p className="mt-3 max-w-2xl text-sm text-emerald-50/85 sm:text-[15px]">
+                                    {publicMode
+                                        ? 'Uma grade operacional para a recepcao editar a semana com rapidez, sem login e sem ruído.'
+                                        : 'Uma grade viva para montar horarios fixos, ajustar a semana e alimentar a operacao em tempo real.'}
+                                </p>
+                            </div>
+
+                            <div className="flex flex-wrap gap-2 text-xs text-emerald-50/85">
+                                <OperationalChip label={tab === 'week' ? 'Modo ativo' : 'Modo ativo'} value={tab === 'week' ? 'Aba da semana' : 'Horarios fixos'} />
+                                <OperationalChip label="Semana" value={weekLabel} />
+                                <OperationalChip label="Treinadores" value={selectedTrainer === 'all' ? 'Todos' : trainers.find((trainer) => trainer.id === selectedTrainer)?.profile?.full_name || 'Filtrado'} />
+                            </div>
                         </div>
 
-                        <div className="grid gap-3 sm:grid-cols-4">
-                            <MetricBox label="Horarios" value={String(summary.slots)} />
-                            <MetricBox label="OK" value={String(summary.present)} />
-                            <MetricBox label="Falta" value={String(summary.absent)} />
-                            <MetricBox label="Pendentes" value={String(summary.pending)} />
+                        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                            <MetricBox label="Horarios" value={String(summary.slots)} hint="blocos ativos" />
+                            <MetricBox label="Vagas" value={String(summary.capacity)} hint="capacidade total" />
+                            <MetricBox label="OK" value={String(summary.present)} hint="presencas" />
+                            <MetricBox label="Falta" value={String(summary.absent)} hint="faltas" />
                         </div>
                     </div>
                 </div>
 
-                <div className="flex flex-col gap-4 border-b border-zinc-200 bg-zinc-50/80 px-6 py-4 xl:flex-row xl:items-center xl:justify-between">
-                    <div className="flex flex-wrap items-center gap-2">
-                        <Link href={`${basePath}?week=${prevWeek}`}>
-                            <Button variant="outline" size="sm">
-                                <ChevronLeft className="h-4 w-4" />
-                                Semana anterior
-                            </Button>
-                        </Link>
-                        <div className="inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-white px-4 py-2 text-sm font-medium text-zinc-700">
-                            <CalendarDays className="h-4 w-4 text-emerald-600" />
-                            {weekLabel}
+                <div className="border-b border-zinc-200 bg-zinc-50/90 px-5 py-4 lg:px-6">
+                    <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+                        <div className="flex flex-wrap items-center gap-2">
+                            <Link href={`${basePath}?week=${prevWeek}`}>
+                                <Button variant="outline" size="sm">
+                                    <ChevronLeft className="h-4 w-4" />
+                                    Semana anterior
+                                </Button>
+                            </Link>
+                            <div className="inline-flex h-10 items-center gap-2 rounded-full border border-zinc-200 bg-white px-4 text-sm font-medium text-zinc-700">
+                                <CalendarDays className="h-4 w-4 text-emerald-600" />
+                                {weekLabel}
+                            </div>
+                            <Link href={`${basePath}?week=${nextWeek}`}>
+                                <Button variant="outline" size="sm">
+                                    Proxima semana
+                                    <ChevronRight className="h-4 w-4" />
+                                </Button>
+                            </Link>
                         </div>
-                        <Link href={`${basePath}?week=${nextWeek}`}>
-                            <Button variant="outline" size="sm">
-                                Proxima semana
-                                <ChevronRight className="h-4 w-4" />
-                            </Button>
-                        </Link>
-                    </div>
 
-                    <div className="flex flex-wrap items-center gap-3">
-                        <>
+                        <div className="flex flex-wrap items-center gap-2">
                             <TabButton active={tab === 'week'} onClick={() => setTab('week')}>
                                 Aba da semana
                             </TabButton>
                             <TabButton active={tab === 'base'} onClick={() => setTab('base')}>
                                 Horarios fixos
                             </TabButton>
-                        </>
 
-                        {(role === 'manager' || publicMode) && (
-                            <select
-                                value={selectedTrainer}
-                                onChange={(event) => setSelectedTrainer(event.target.value)}
-                                className="h-10 rounded-lg border border-zinc-300 bg-white px-3 text-sm text-zinc-700 outline-none focus:border-emerald-500"
-                            >
-                                <option value="all">Todos os treinadores</option>
-                                {trainers.map((trainer) => (
-                                    <option key={trainer.id} value={trainer.id}>
-                                        {trainer.profile?.full_name}
-                                    </option>
-                                ))}
-                            </select>
-                        )}
+                            {(role === 'manager' || publicMode) && (
+                                <select
+                                    value={selectedTrainer}
+                                    onChange={(event) => setSelectedTrainer(event.target.value)}
+                                    className="h-10 rounded-full border border-zinc-300 bg-white px-4 text-sm text-zinc-700 outline-none focus:border-emerald-500"
+                                >
+                                    <option value="all">Todos os treinadores</option>
+                                    {trainers.map((trainer) => (
+                                        <option key={trainer.id} value={trainer.id}>
+                                            {trainer.profile?.full_name}
+                                        </option>
+                                    ))}
+                                </select>
+                            )}
 
-                        <Button onClick={() => openNewSlot(tab)}>
-                            <Plus className="h-4 w-4" />
-                            {tab === 'week' ? 'Novo horario da semana' : 'Novo horario fixo'}
-                        </Button>
+                            <Button onClick={() => openNewSlot(tab)}>
+                                <Plus className="h-4 w-4" />
+                                {tab === 'week' ? 'Novo horario da semana' : 'Novo horario fixo'}
+                            </Button>
+                        </div>
                     </div>
                 </div>
 
-                <div className="p-6">
+                <div className="p-5 lg:p-6">
+                    <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                            <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-zinc-400">
+                                {publicMode ? 'Recepcao' : 'Planilha operacional'}
+                            </p>
+                            <h2 className="mt-1 text-xl font-semibold text-zinc-950">
+                                {tab === 'week' ? 'Grade operacional da semana' : 'Grade recorrente dos horarios fixos'}
+                            </h2>
+                            <p className="mt-1 text-sm text-zinc-500">
+                                {tab === 'week'
+                                    ? 'Adicione alunos, mova a ocupacao da semana e ajuste a grade conforme a operacao real.'
+                                    : 'Monte a espinha dorsal da agenda e replique a base com menos trabalho manual.'}
+                            </p>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                            <SurfacePill label="Status" value={timeRows.length > 0 ? 'Grade pronta para edicao' : 'Sem blocos montados'} />
+                            <SurfacePill label="Linhas" value={String(timeRows.length)} />
+                            <SurfacePill label="Pendentes" value={String(summary.pending)} />
+                        </div>
+                    </div>
                     <SpreadsheetGrid
                         mode={tab}
                         weekDays={weekDays}
@@ -310,8 +347,8 @@ export function AttendanceWorkspace({
             </section>
 
             {!publicMode && role === 'manager' && (
-                <section className="rounded-[28px] border border-zinc-200 bg-white p-6 shadow-[0_20px_50px_-42px_rgba(24,24,27,0.32)]">
-                    <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+                <section className="overflow-hidden rounded-[28px] border border-zinc-200 bg-white shadow-[0_20px_50px_-42px_rgba(24,24,27,0.32)]">
+                    <div className="grid gap-5 px-5 py-5 lg:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)] lg:px-6">
                         <div>
                             <p className="text-xs font-semibold uppercase tracking-[0.28em] text-zinc-400">
                                 Link da recepcao
@@ -320,40 +357,55 @@ export function AttendanceWorkspace({
                                 Agenda publica sem login
                             </h2>
                             <p className="mt-2 max-w-2xl text-sm text-zinc-500">
-                                Deixe a agenda aberta na recepcao com total liberdade para editar a aba da semana, sem expor dados internos do sistema.
+                                Deixe a agenda aberta na recepcao com liberdade para editar a semana e os horarios fixos, sem expor o restante do sistema.
                             </p>
-                        </div>
 
-                        {receptionistUrl ? (
-                            <div className="flex flex-wrap gap-3">
-                                <Button variant="outline" onClick={copyLink}>
-                                    <Copy className="h-4 w-4" />
-                                    Copiar
-                                </Button>
-                                <a href={receptionistUrl} target="_blank" rel="noreferrer">
-                                    <Button variant="outline">
-                                        <ExternalLink className="h-4 w-4" />
-                                        Abrir link
-                                    </Button>
-                                </a>
-                                <Button variant="secondary" onClick={handleRegenerateLink} isLoading={isPending}>
-                                    <RefreshCw className="h-4 w-4" />
-                                    Regenerar
-                                </Button>
+                            <div className="mt-4 flex flex-wrap gap-2">
+                                <SurfacePill label="Escopo" value="Recepcao" />
+                                <SurfacePill label="Permissao" value="Agenda e presenca" />
+                                <SurfacePill label="Login" value="Nao exige" />
                             </div>
-                        ) : (
-                            <Button onClick={handleEnsureLink} isLoading={isPending}>
-                                <KeyRound className="h-4 w-4" />
-                                Gerar link da recepcao
-                            </Button>
-                        )}
-                    </div>
-
-                    {receptionistUrl && (
-                        <div className="mt-5 rounded-2xl border border-zinc-200 bg-zinc-50 p-4 font-mono text-sm text-zinc-700">
-                            {receptionistUrl}
                         </div>
-                    )}
+
+                        <div className="rounded-[24px] border border-zinc-200 bg-zinc-50 p-4">
+                            <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-zinc-400">
+                                Operacao externa
+                            </p>
+                            {receptionistUrl ? (
+                                <>
+                                    <div className="mt-3 rounded-2xl border border-zinc-200 bg-white p-4 font-mono text-xs leading-6 text-zinc-600">
+                                        {receptionistUrl}
+                                    </div>
+                                    <div className="mt-4 flex flex-wrap gap-2">
+                                        <Button variant="outline" onClick={copyLink}>
+                                            <Copy className="h-4 w-4" />
+                                            Copiar
+                                        </Button>
+                                        <a href={receptionistUrl} target="_blank" rel="noreferrer">
+                                            <Button variant="outline">
+                                                <ExternalLink className="h-4 w-4" />
+                                                Abrir link
+                                            </Button>
+                                        </a>
+                                        <Button variant="secondary" onClick={handleRegenerateLink} isLoading={isPending}>
+                                            <RefreshCw className="h-4 w-4" />
+                                            Regenerar
+                                        </Button>
+                                    </div>
+                                </>
+                            ) : (
+                                <div className="mt-3 rounded-2xl border border-dashed border-zinc-300 bg-white p-5">
+                                    <p className="text-sm text-zinc-500">
+                                        Gere um link permanente para deixar a agenda aberta na recepcao.
+                                    </p>
+                                    <Button className="mt-4" onClick={handleEnsureLink} isLoading={isPending}>
+                                        <KeyRound className="h-4 w-4" />
+                                        Gerar link da recepcao
+                                    </Button>
+                                </div>
+                            )}
+                        </div>
+                    </div>
                 </section>
             )}
 
@@ -402,35 +454,82 @@ function SpreadsheetGrid({
 
     if (slots.length === 0) {
         return (
-            <div className="rounded-[28px] border border-zinc-200 bg-zinc-100/70 p-4">
-                <div className="rounded-2xl border border-dashed border-zinc-300 bg-white px-6 py-14 text-center text-zinc-500">
-                    Nenhum horario criado ainda. Use o botao de novo horario para começar a montar a grade.
+            <div className="rounded-[28px] border border-zinc-200 bg-[linear-gradient(180deg,#fafaf9_0%,#f3f4f6_100%)] p-4">
+                <div className="rounded-[24px] border border-dashed border-zinc-300 bg-white px-6 py-14 text-center">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-zinc-400">
+                        Grade vazia
+                    </p>
+                    <h3 className="mt-3 text-2xl font-semibold text-zinc-900">
+                        Nenhum horario criado ainda
+                    </h3>
+                    <p className="mx-auto mt-3 max-w-2xl text-sm text-zinc-500">
+                        Comece criando a estrutura principal da agenda. Depois a operacao pode preencher vagas, mover nomes e ajustar a semana como planilha.
+                    </p>
+                    <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+                        <Button onClick={() => onNewCell(mode)}>
+                            <Plus className="h-4 w-4" />
+                            {mode === 'week' ? 'Criar horario da semana' : 'Criar horario fixo'}
+                        </Button>
+                        <button
+                            type="button"
+                            onClick={() => onNewCell(mode, 1, '06:00')}
+                            className="rounded-full border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-600 transition hover:border-emerald-300 hover:text-emerald-700"
+                        >
+                            Comecar por segunda, 06:00
+                        </button>
+                    </div>
                 </div>
             </div>
         );
     }
 
     return (
-        <div className="overflow-x-auto">
-            <div className="min-w-[1120px] rounded-[28px] border border-zinc-200 bg-zinc-100/70 p-4">
-                <div className="grid grid-cols-[92px_repeat(5,minmax(200px,1fr))] gap-3">
-                    <div className="rounded-2xl bg-zinc-900 px-4 py-4 text-xs font-semibold uppercase tracking-[0.24em] text-zinc-300">
+        <>
+            <div className="xl:hidden">
+                <MobileAgendaStack
+                    mode={mode}
+                    weekDays={weekDays}
+                    timeRows={timeRows}
+                    slots={slots}
+                    onNewCell={onNewCell}
+                    onEditCell={onEditCell}
+                    onVacancyClick={onVacancyClick}
+                    participantName={participantName}
+                    participantMeta={participantMeta}
+                />
+            </div>
+
+            <div className="hidden xl:block overflow-x-auto">
+                <div className="min-w-[1120px] rounded-[28px] border border-zinc-200 bg-[linear-gradient(180deg,#fcfcfb_0%,#f1f5f2_100%)] p-3">
+                    <div className="grid grid-cols-[92px_repeat(5,minmax(200px,1fr))] gap-2.5">
+                    <div className="rounded-[20px] bg-zinc-950 px-4 py-4 text-xs font-semibold uppercase tracking-[0.24em] text-zinc-300">
                         Hora
                     </div>
-                    {weekDays.map((day) => (
-                        <div key={day.isoDate} className="rounded-2xl bg-white px-4 py-4 shadow-sm ring-1 ring-zinc-200">
-                            <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-emerald-700">{day.label}</p>
-                            <p className="mt-1 text-lg font-semibold text-zinc-900">
-                                {format(day.date, "dd 'de' MMM", { locale: ptBR })}
+                    {weekDays.map((day, index) => (
+                        <div key={day.isoDate} className="rounded-[20px] bg-white px-4 py-4 shadow-sm ring-1 ring-zinc-200">
+                            <div className="flex items-start justify-between gap-3">
+                                <div>
+                                    <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-emerald-700">{day.label}</p>
+                                    <p className="mt-1 text-lg font-semibold text-zinc-900">
+                                        {format(day.date, "dd 'de' MMM", { locale: ptBR })}
+                                    </p>
+                                </div>
+                                <span className="rounded-full bg-zinc-100 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-zinc-500">
+                                    D{index + 1}
+                                </span>
+                            </div>
+                            <p className="mt-3 text-xs text-zinc-400">
+                                Clique nas vagas livres para preencher rapido.
                             </p>
                         </div>
                     ))}
 
-                    {timeRows.map((time) => (
+                    {timeRows.map((time, index) => (
                         <GridRow
                             key={time}
                             mode={mode}
                             time={time}
+                            rowIndex={index}
                             weekDays={weekDays}
                             slots={slots}
                             onNewCell={onNewCell}
@@ -440,15 +539,17 @@ function SpreadsheetGrid({
                             participantMeta={participantMeta}
                         />
                     ))}
+                    </div>
                 </div>
             </div>
-        </div>
+        </>
     );
 }
 
 function GridRow({
     mode,
     time,
+    rowIndex,
     weekDays,
     slots,
     onNewCell,
@@ -459,6 +560,7 @@ function GridRow({
 }: {
     mode: TabMode;
     time: string;
+    rowIndex: number;
     weekDays: AttendanceWorkspaceProps['weekDays'];
     slots: (BaseSlot | WeekSlot)[];
     onNewCell: (mode: TabMode, weekday?: number, startTime?: string) => void;
@@ -469,7 +571,10 @@ function GridRow({
 }) {
     return (
         <>
-            <div className="rounded-2xl bg-zinc-900 px-4 py-5 text-center text-xl font-semibold text-white shadow-sm">
+            <div className={cn(
+                'rounded-[20px] px-4 py-5 text-center text-xl font-semibold text-white shadow-sm',
+                rowIndex % 2 === 0 ? 'bg-zinc-950' : 'bg-zinc-900'
+            )}>
                 {formatTimeLabel(time)}
             </div>
             {weekDays.map((day) => {
@@ -481,9 +586,12 @@ function GridRow({
                             key={`${time}-${day.isoDate}`}
                             type="button"
                             onClick={() => onNewCell(mode, day.value, time.slice(0, 5))}
-                            className="min-h-[150px] rounded-2xl border border-dashed border-zinc-300 bg-white/85 px-4 py-6 text-left text-sm text-zinc-400 transition hover:border-emerald-300 hover:text-emerald-700"
+                            className="min-h-[154px] rounded-[20px] border border-dashed border-zinc-300 bg-white px-4 py-5 text-left text-sm text-zinc-400 transition hover:border-emerald-300 hover:bg-emerald-50/40 hover:text-emerald-700"
                         >
                             <span className="font-medium">Adicionar horario</span>
+                            <p className="mt-2 text-xs text-zinc-400">
+                                Abra um bloco novo nessa combinacao de dia e hora.
+                            </p>
                         </button>
                     );
                 }
@@ -491,22 +599,25 @@ function GridRow({
                 return (
                     <div
                         key={`${time}-${day.isoDate}`}
-                        className="min-h-[150px] rounded-2xl border border-zinc-200 bg-white p-3 text-left shadow-sm"
+                        className="min-h-[154px] rounded-[20px] border border-zinc-200 bg-white p-2.5 text-left shadow-sm"
                     >
-                        <div className="space-y-3">
-                            {cellSlots.map((slot) => (
+                        <div className="space-y-2.5">
+                            {cellSlots.map((slot, slotIndex) => (
                                 <div
                                     key={slot.id}
-                                    className="rounded-xl border border-zinc-200 bg-zinc-50 p-3 text-left transition hover:border-emerald-300 hover:bg-white hover:shadow-sm"
+                                    className={cn(
+                                        'rounded-[18px] border bg-zinc-50/80 p-3 text-left transition hover:border-emerald-300 hover:bg-white hover:shadow-sm',
+                                        slotIndex === 0 ? 'border-zinc-200' : 'border-zinc-200/80'
+                                    )}
                                 >
-                                    <div className="flex items-center justify-between gap-3">
-                                        <div className="space-y-1">
+                                    <div className="flex items-start justify-between gap-3">
+                                        <div className="min-w-0 space-y-1">
                                             {slot.trainer?.profile?.full_name && (
-                                                <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-emerald-700">
+                                                <p className="truncate text-[11px] font-semibold uppercase tracking-[0.22em] text-emerald-700">
                                                     {slot.trainer.profile.full_name}
                                                 </p>
                                             )}
-                                            <div className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-zinc-600 ring-1 ring-zinc-200">
+                                            <div className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-600 ring-1 ring-zinc-200">
                                                 <Users className="h-3.5 w-3.5" />
                                                 {slot.entries.length}/{slot.capacity}
                                             </div>
@@ -514,13 +625,13 @@ function GridRow({
                                         <button
                                             type="button"
                                             onClick={() => onEditCell(mode, slot)}
-                                            className="text-xs font-medium text-zinc-400 transition hover:text-emerald-700"
+                                            className="rounded-full border border-zinc-200 bg-white px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-500 transition hover:border-emerald-300 hover:text-emerald-700"
                                         >
                                             Editar
                                         </button>
                                     </div>
 
-                                    <div className="mt-4 space-y-2">
+                                    <div className="mt-3 space-y-1.5">
                                         {Array.from({ length: slot.capacity }).map((_, index) => {
                                             const entry = slot.entries[index];
 
@@ -530,15 +641,16 @@ function GridRow({
                                                         key={index}
                                                         type="button"
                                                         onClick={() => onVacancyClick(mode, slot)}
-                                                        className="w-full rounded-lg border border-dashed border-zinc-200 px-3 py-2 text-left text-xs text-zinc-400 transition hover:border-emerald-300 hover:text-emerald-700"
+                                                        className="flex w-full items-center justify-between rounded-xl border border-dashed border-zinc-200 bg-white/70 px-3 py-2 text-left text-xs text-zinc-400 transition hover:border-emerald-300 hover:text-emerald-700"
                                                     >
-                                                        Vaga livre
+                                                        <span>Vaga livre</span>
+                                                        <span className="text-[10px] uppercase tracking-[0.18em]">+ aluno</span>
                                                     </button>
                                                 );
                                             }
 
                                             return (
-                                                <div key={entry.id} className="rounded-lg bg-white px-3 py-2 ring-1 ring-zinc-200">
+                                                <div key={entry.id} className="rounded-xl bg-white px-3 py-2 ring-1 ring-zinc-200">
                                                     <div className="flex items-center justify-between gap-2">
                                                         <p className="truncate text-sm font-medium text-zinc-900">{participantName(entry)}</p>
                                                         {'status' in entry && (
@@ -558,7 +670,7 @@ function GridRow({
                             <button
                                 type="button"
                                 onClick={() => onNewCell(mode, day.value, time.slice(0, 5))}
-                                className="w-full rounded-xl border border-dashed border-zinc-300 px-3 py-3 text-center text-xs font-medium text-zinc-500 transition hover:border-emerald-300 hover:text-emerald-700"
+                                className="w-full rounded-[18px] border border-dashed border-zinc-300 px-3 py-3 text-center text-xs font-medium text-zinc-500 transition hover:border-emerald-300 hover:text-emerald-700"
                             >
                                 Adicionar outro treinador
                             </button>
@@ -584,11 +696,169 @@ function StatusMark({ status }: { status: AttendanceStatus }) {
     );
 }
 
-function MetricBox({ label, value }: { label: string; value: string }) {
+function MetricBox({ label, value, hint }: { label: string; value: string; hint: string }) {
     return (
-        <div className="rounded-2xl border border-white/15 bg-white/10 px-4 py-3 backdrop-blur-sm">
+        <div className="rounded-[22px] border border-white/15 bg-white/10 px-4 py-3 backdrop-blur-sm">
             <p className="text-[11px] uppercase tracking-[0.24em] text-emerald-50/70">{label}</p>
             <p className="mt-2 text-2xl font-semibold text-white">{value}</p>
+            <p className="mt-1 text-[11px] uppercase tracking-[0.18em] text-emerald-50/55">{hint}</p>
+        </div>
+    );
+}
+
+function MobileAgendaStack({
+    mode,
+    weekDays,
+    timeRows,
+    slots,
+    onNewCell,
+    onEditCell,
+    onVacancyClick,
+    participantName,
+    participantMeta,
+}: {
+    mode: TabMode;
+    weekDays: AttendanceWorkspaceProps['weekDays'];
+    timeRows: string[];
+    slots: (BaseSlot | WeekSlot)[];
+    onNewCell: (mode: TabMode, weekday?: number, startTime?: string) => void;
+    onEditCell: (mode: TabMode, slot: BaseSlot | WeekSlot) => void;
+    onVacancyClick: (mode: TabMode, slot: BaseSlot | WeekSlot) => void;
+    participantName: (entry: any) => string;
+    participantMeta: (entry: any, trainerName?: string) => string;
+}) {
+    return (
+        <div className="space-y-4">
+            {weekDays.map((day) => {
+                const daySlots = slots.filter((slot) => slot.weekday === day.value);
+                const dayTimes = timeRows.filter((time) => daySlots.some((slot) => slot.start_time === time));
+
+                return (
+                    <section key={day.isoDate} className="overflow-hidden rounded-[24px] border border-zinc-200 bg-white shadow-sm">
+                        <div className="border-b border-zinc-200 bg-zinc-50 px-4 py-4">
+                            <div className="flex items-start justify-between gap-3">
+                                <div>
+                                    <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-emerald-700">{day.label}</p>
+                                    <h3 className="mt-1 text-lg font-semibold text-zinc-900">
+                                        {format(day.date, "dd 'de' MMM", { locale: ptBR })}
+                                    </h3>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => onNewCell(mode, day.value, '06:00')}
+                                    className="rounded-full border border-zinc-300 bg-white px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.18em] text-zinc-600"
+                                >
+                                    + horario
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="space-y-3 p-4">
+                            {dayTimes.length === 0 ? (
+                                <button
+                                    type="button"
+                                    onClick={() => onNewCell(mode, day.value, '06:00')}
+                                    className="w-full rounded-[18px] border border-dashed border-zinc-300 px-4 py-6 text-left text-sm text-zinc-500 transition hover:border-emerald-300 hover:text-emerald-700"
+                                >
+                                    Adicionar primeiro horario do dia
+                                </button>
+                            ) : (
+                                dayTimes.map((time) => {
+                                    const timeSlots = daySlots.filter((slot) => slot.start_time === time);
+
+                                    return (
+                                        <div key={`${day.isoDate}-${time}`} className="space-y-2">
+                                            <div className="flex items-center justify-between rounded-[18px] bg-zinc-950 px-4 py-3 text-white">
+                                                <span className="text-lg font-semibold">{formatTimeLabel(time)}</span>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => onNewCell(mode, day.value, time.slice(0, 5))}
+                                                    className="rounded-full border border-white/15 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-100"
+                                                >
+                                                    + treinador
+                                                </button>
+                                            </div>
+
+                                            {timeSlots.map((slot) => (
+                                                <div key={slot.id} className="rounded-[18px] border border-zinc-200 bg-zinc-50/80 p-3">
+                                                    <div className="flex items-start justify-between gap-3">
+                                                        <div className="min-w-0">
+                                                            <p className="truncate text-[11px] font-semibold uppercase tracking-[0.22em] text-emerald-700">
+                                                                {slot.trainer?.profile?.full_name || 'Treinador'}
+                                                            </p>
+                                                            <div className="mt-2 inline-flex items-center gap-2 rounded-full bg-white px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-600 ring-1 ring-zinc-200">
+                                                                <Users className="h-3.5 w-3.5" />
+                                                                {slot.entries.length}/{slot.capacity}
+                                                            </div>
+                                                        </div>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => onEditCell(mode, slot)}
+                                                            className="rounded-full border border-zinc-200 bg-white px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-500"
+                                                        >
+                                                            Editar
+                                                        </button>
+                                                    </div>
+
+                                                    <div className="mt-3 space-y-1.5">
+                                                        {Array.from({ length: slot.capacity }).map((_, index) => {
+                                                            const entry = slot.entries[index];
+
+                                                            if (!entry) {
+                                                                return (
+                                                                    <button
+                                                                        key={index}
+                                                                        type="button"
+                                                                        onClick={() => onVacancyClick(mode, slot)}
+                                                                        className="flex w-full items-center justify-between rounded-xl border border-dashed border-zinc-200 bg-white px-3 py-2 text-left text-xs text-zinc-400"
+                                                                    >
+                                                                        <span>Vaga livre</span>
+                                                                        <span className="text-[10px] uppercase tracking-[0.18em]">+ aluno</span>
+                                                                    </button>
+                                                                );
+                                                            }
+
+                                                            return (
+                                                                <div key={entry.id} className="rounded-xl bg-white px-3 py-2 ring-1 ring-zinc-200">
+                                                                    <div className="flex items-center justify-between gap-2">
+                                                                        <p className="truncate text-sm font-medium text-zinc-900">{participantName(entry)}</p>
+                                                                        {'status' in entry && <StatusMark status={entry.status} />}
+                                                                    </div>
+                                                                    <p className="mt-1 truncate text-[11px] uppercase tracking-[0.2em] text-zinc-500">
+                                                                        {participantMeta(entry, slot.trainer?.profile?.full_name)}
+                                                                    </p>
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    );
+                                })
+                            )}
+                        </div>
+                    </section>
+                );
+            })}
+        </div>
+    );
+}
+
+function OperationalChip({ label, value }: { label: string; value: string }) {
+    return (
+        <div className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-black/10 px-3 py-1.5">
+            <span className="text-[10px] uppercase tracking-[0.18em] text-emerald-50/60">{label}</span>
+            <span className="text-xs font-medium text-white">{value}</span>
+        </div>
+    );
+}
+
+function SurfacePill({ label, value }: { label: string; value: string }) {
+    return (
+        <div className="rounded-full border border-zinc-200 bg-white px-3 py-2">
+            <span className="text-[10px] uppercase tracking-[0.18em] text-zinc-400">{label}</span>
+            <span className="ml-2 text-sm font-medium text-zinc-700">{value}</span>
         </div>
     );
 }
@@ -608,7 +878,7 @@ function TabButton({
             onClick={onClick}
             className={cn(
                 'rounded-full px-4 py-2 text-sm font-medium transition',
-                active ? 'bg-zinc-900 text-white' : 'bg-white text-zinc-600 ring-1 ring-zinc-200 hover:text-zinc-900'
+                active ? 'bg-zinc-950 text-white shadow-sm' : 'bg-white text-zinc-600 ring-1 ring-zinc-200 hover:text-zinc-900'
             )}
         >
             {children}

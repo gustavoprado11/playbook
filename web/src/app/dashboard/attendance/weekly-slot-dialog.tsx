@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
+import { CalendarDays, Clock3, Users } from 'lucide-react';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -301,15 +302,29 @@ export function WeeklySlotDialog({
     }
 
     const showParticipants = slotRows.length === 1;
+    const selectedTrainerName = trainers.find((trainer) => trainer.id === trainerId)?.profile?.full_name || 'Treinador';
+    const weekdayName = WEEKDAY_OPTIONS.find((day) => String(day.value) === weekday)?.label || 'Dia';
+    const totalCapacity = slotRows.reduce((sum, row) => sum + (Number(row.capacity) || 0), 0);
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="flex max-h-[92vh] w-[min(96vw,72rem)] max-w-none flex-col overflow-hidden bg-white p-0 sm:rounded-2xl">
-                <DialogHeader className="shrink-0 border-b border-zinc-200 px-4 py-4 sm:px-6">
-                    <DialogTitle>{mode === 'base' ? 'Editar horario fixo' : 'Editar horario da semana'}</DialogTitle>
-                    <DialogDescription>
-                        Trabalhe como planilha: ajuste horarios, vagas e lista de nomes da celula selecionada.
-                    </DialogDescription>
+                <DialogHeader className="shrink-0 border-b border-zinc-200 bg-[linear-gradient(135deg,#fcfcfb_0%,#f3f7f2_100%)] px-4 py-4 sm:px-6">
+                    <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+                        <div>
+                            <DialogTitle>{mode === 'base' ? 'Editar horario fixo' : 'Editar horario da semana'}</DialogTitle>
+                            <DialogDescription className="mt-2">
+                                Trabalhe como planilha: ajuste horarios, vagas e lista de nomes da celula selecionada.
+                            </DialogDescription>
+                        </div>
+
+                        <div className="flex flex-wrap gap-2">
+                            <DialogChip icon={<Users className="h-3.5 w-3.5" />} label="Treinador" value={selectedTrainerName} />
+                            <DialogChip icon={<CalendarDays className="h-3.5 w-3.5" />} label="Dia" value={weekdayName} />
+                            <DialogChip icon={<Clock3 className="h-3.5 w-3.5" />} label="Horarios" value={String(slotRows.length)} />
+                            <DialogChip icon={<Users className="h-3.5 w-3.5" />} label="Vagas" value={String(totalCapacity)} />
+                        </div>
+                    </div>
                 </DialogHeader>
 
                 <form onSubmit={handleSave} className="flex min-h-0 flex-1 flex-col">
@@ -367,9 +382,16 @@ export function WeeklySlotDialog({
                             )}
                         </div>
 
-                        <div className="space-y-3 p-4">
+                        <div className="p-4">
+                            <div className="hidden rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-500 lg:grid lg:grid-cols-[1fr,160px,44px] lg:gap-3">
+                                <span>Horario</span>
+                                <span>Vagas</span>
+                                <span />
+                            </div>
+
+                            <div className="mt-3 space-y-3">
                             {slotRows.map((row, index) => (
-                                <div key={row.id} className="grid gap-3 rounded-xl border border-zinc-200 bg-zinc-50 p-3 lg:grid-cols-[1fr,160px,44px]">
+                                <div key={row.id} className="grid gap-3 rounded-xl border border-zinc-200 bg-zinc-50/80 p-3 lg:grid-cols-[1fr,160px,44px]">
                                     <Input
                                         type="time"
                                         label={index === 0 ? 'Horario' : `Horario ${index + 1}`}
@@ -395,6 +417,7 @@ export function WeeklySlotDialog({
                                     </div>
                                 </div>
                             ))}
+                            </div>
                         </div>
                     </div>
 
@@ -436,7 +459,7 @@ export function WeeklySlotDialog({
                                     const canConvertToGuest = entry.participantType === 'student' && Boolean(entry.search.trim()) && !hasExactStudent;
 
                                     return (
-                                        <div key={entry.id} className="grid gap-3 rounded-xl border border-zinc-200 bg-zinc-50 p-3 xl:grid-cols-[110px,1.4fr,1fr,130px,44px]">
+                                        <div key={entry.id} className="grid gap-3 rounded-xl border border-zinc-200 bg-zinc-50/80 p-3 xl:grid-cols-[110px,1.4fr,1fr,130px,44px]">
                                             <div className="space-y-2">
                                                 <Label className="text-xs text-zinc-500">Tipo</Label>
                                                 <Select
@@ -472,7 +495,7 @@ export function WeeklySlotDialog({
                                                     />
 
                                                     {matches.length > 0 && (
-                                                        <div className="rounded-xl border border-zinc-200 bg-white p-1">
+                                                        <div className="rounded-xl border border-zinc-200 bg-white p-1 shadow-[0_12px_28px_-20px_rgba(24,24,27,0.35)]">
                                                             {matches.map((student) => (
                                                                 <button
                                                                     key={student.id}
@@ -493,7 +516,7 @@ export function WeeklySlotDialog({
                                                         <button
                                                             type="button"
                                                             onClick={() => convertEntryToGuest(entry)}
-                                                            className="rounded-lg border border-dashed border-zinc-300 px-3 py-2 text-sm text-zinc-600 transition hover:border-emerald-300 hover:text-emerald-700"
+                                                            className="rounded-lg border border-dashed border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-600 transition hover:border-emerald-300 hover:text-emerald-700"
                                                         >
                                                             Manter "{entry.search.trim()}" como avulso
                                                         </button>
@@ -556,6 +579,9 @@ export function WeeklySlotDialog({
                     </div>
 
                     <DialogFooter className="shrink-0 border-t border-zinc-200 bg-white px-4 py-4 sm:px-6 sm:justify-between">
+                        <div className="text-xs uppercase tracking-[0.18em] text-zinc-400">
+                            {showParticipants ? `${entries.length} participante(s) preenchidos` : 'Salve os horarios em lote para preencher participantes depois'}
+                        </div>
                         <div>
                             {slot?.id && (
                                 <Button type="button" variant="outline" onClick={handleDelete} isLoading={isPending}>
@@ -575,5 +601,23 @@ export function WeeklySlotDialog({
                 </form>
             </DialogContent>
         </Dialog>
+    );
+}
+
+function DialogChip({
+    icon,
+    label,
+    value,
+}: {
+    icon: React.ReactNode;
+    label: string;
+    value: string;
+}) {
+    return (
+        <div className="inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-white px-3 py-2 shadow-sm">
+            <span className="text-zinc-400">{icon}</span>
+            <span className="text-[10px] uppercase tracking-[0.18em] text-zinc-400">{label}</span>
+            <span className="text-sm font-medium text-zinc-700">{value}</span>
+        </div>
     );
 }
