@@ -9,6 +9,7 @@ export type StudentStatus = 'active' | 'cancelled' | 'paused';
 export type StudentOrigin = 'organic' | 'referral' | 'marketing';
 export type CalculationType = 'weighted' | 'fixed';
 export type EventType = 'status_change' | 'trainer_change' | 'origin_update';
+export type AttendanceStatus = 'pending' | 'present' | 'absent';
 
 // KPI Configuration in game_rules
 export interface KPIConfig {
@@ -87,6 +88,52 @@ export interface StudentEvent {
   new_value: Record<string, unknown> | null;
   event_date: string;
   created_by: string | null;
+}
+
+export interface WeeklyScheduleTemplate {
+  id: string;
+  student_id: string | null;
+  guest_name: string | null;
+  guest_origin: string | null;
+  trainer_id: string;
+  weekday: number;
+  start_time: string;
+  notes: string | null;
+  is_active: boolean;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+  student?: Student & { trainer?: Trainer & { profile?: Profile } };
+  trainer?: Trainer & { profile?: Profile };
+}
+
+export interface AttendanceRecord {
+  id: string;
+  schedule_template_id: string;
+  student_id: string | null;
+  guest_name: string | null;
+  guest_origin: string | null;
+  trainer_id: string;
+  session_date: string;
+  start_time: string;
+  status: AttendanceStatus;
+  notes: string | null;
+  marked_by: string | null;
+  marked_at: string | null;
+  created_at: string;
+  updated_at: string;
+  student?: Student & { trainer?: Trainer & { profile?: Profile } };
+  trainer?: Trainer & { profile?: Profile };
+}
+
+export interface AttendancePublicLink {
+  id: string;
+  label: string;
+  access_token: string;
+  is_active: boolean;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 // Protocols Management Types
@@ -292,6 +339,23 @@ export interface CreateGameRuleInput {
   calculation_type: CalculationType;
   kpi_config: KPIConfig;
   base_reward_amount: number;
+}
+
+export interface UpsertWeeklyScheduleInput {
+  id?: string;
+  student_id?: string;
+  guest_name?: string;
+  guest_origin?: string;
+  trainer_id?: string;
+  weekday: number;
+  start_time: string;
+  notes?: string;
+}
+
+export interface SetAttendanceStatusInput {
+  schedule_template_id: string;
+  session_date: string;
+  status: AttendanceStatus;
 }
 
 // Activity Tracking

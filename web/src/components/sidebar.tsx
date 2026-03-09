@@ -46,6 +46,7 @@ export function Sidebar({ role, userName }: SidebarProps) {
         { href: '/dashboard/manager', label: 'Visão Geral', icon: LayoutDashboard },
         { href: '/dashboard/manager/trainers', label: 'Treinadores', icon: UserCheck },
         { href: '/dashboard/manager/students', label: 'Alunos', icon: Users },
+        { href: '/dashboard/manager/attendance', label: 'Agenda', icon: Clock },
         { href: '/dashboard/manager/results/types', label: 'Gestão de Resultados', icon: TrendingUp },
         { href: '/dashboard/manager/rules', label: 'Política de Incentivos', icon: CircleDollarSign },
     ];
@@ -53,6 +54,7 @@ export function Sidebar({ role, userName }: SidebarProps) {
     const trainerActiveLinks: NavItem[] = [
         { href: '/dashboard/trainer', label: 'Meu Desempenho', icon: LayoutDashboard },
         { href: '/dashboard/trainer/students', label: 'Meus Alunos', icon: Users },
+        { href: '/dashboard/trainer/attendance', label: 'Agenda', icon: Clock },
         { href: '/dashboard/trainer/results/types', label: 'Protocolos', icon: TrendingUp },
     ];
 
