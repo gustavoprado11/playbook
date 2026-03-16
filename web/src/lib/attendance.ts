@@ -2,7 +2,7 @@ import { addDays, format, startOfWeek } from 'date-fns';
 
 export const WEEKDAY_OPTIONS = [
   { value: 1, short: 'Seg', label: 'Segunda' },
-  { value: 2, short: 'Ter', label: 'Terca' },
+  { value: 2, short: 'Ter', label: 'Terça' },
   { value: 3, short: 'Qua', label: 'Quarta' },
   { value: 4, short: 'Qui', label: 'Quinta' },
   { value: 5, short: 'Sex', label: 'Sexta' },

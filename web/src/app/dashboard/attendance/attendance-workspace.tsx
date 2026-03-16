@@ -5,15 +5,16 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { addDays, format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { CalendarDays, ChevronLeft, ChevronRight, Copy, ExternalLink, KeyRound, Plus, RefreshCw, Users } from 'lucide-react';
+import { CalendarDays, ChevronLeft, ChevronRight, Copy, ExternalLink, KeyRound, Plus, RefreshCw, Search, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
+import { AttendanceCheckbox } from '@/components/attendance/attendance-checkbox';
+import { SlotCellPopover } from '@/components/attendance/slot-cell-popover';
 import { getOrCreateAttendancePublicLink, regenerateAttendancePublicLink } from '@/app/actions/attendance';
 import { formatTimeLabel, WEEKDAY_OPTIONS } from '@/lib/attendance';
 import { cn } from '@/lib/utils';
 import type {
     AttendancePublicLink,
-    AttendanceStatus,
     Profile,
     ScheduleBaseEntry,
     ScheduleBaseSlot,
@@ -73,10 +74,10 @@ export function AttendanceWorkspace({
     const [selectedTrainer, setSelectedTrainer] = useState('all');
     const [editingMode, setEditingMode] = useState<TabMode>('week');
     const [editingSlot, setEditingSlot] = useState<BaseSlot | WeekSlot | undefined>();
-    const [autoAddEntry, setAutoAddEntry] = useState(false);
     const [dialogOpen, setDialogOpen] = useState(false);
     const [linkState, setLinkState] = useState(publicLink);
     const [isPending, startTransition] = useTransition();
+    const [searchQuery, setSearchQuery] = useState('');
 
     const prevWeek = format(addDays(parseISO(weekStart), -7), 'yyyy-MM-dd');
     const nextWeek = format(addDays(parseISO(weekStart), 7), 'yyyy-MM-dd');
@@ -123,17 +124,47 @@ export function AttendanceWorkspace({
         };
     }, [trainerFilteredWeek]);
 
+    const searchResults = useMemo(() => {
+        const q = searchQuery.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        if (!q) return { matchedSlotIds: new Set<string>(), matchedEntryIds: new Set<string>(), grouped: [] as { name: string; isGuest: boolean; slots: { weekday: number; startTime: string; trainerName: string }[] }[] };
+
+        const source = tab === 'base' ? trainerFilteredBase : trainerFilteredWeek;
+        const matchedSlotIds = new Set<string>();
+        const matchedEntryIds = new Set<string>();
+        const byName = new Map<string, { name: string; isGuest: boolean; slots: { weekday: number; startTime: string; trainerName: string }[] }>();
+
+        for (const slot of source) {
+            for (const entry of slot.entries as any[]) {
+                const entryName: string = entry.student?.full_name || entry.guest_name || '';
+                const normalized = entryName.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+                if (normalized.includes(q)) {
+                    matchedSlotIds.add(slot.id);
+                    matchedEntryIds.add(entry.id);
+                    const isGuest = !entry.student_id && !!entry.guest_name;
+                    const key = `${entryName}|${isGuest ? '1' : '0'}`;
+                    if (!byName.has(key)) {
+                        byName.set(key, { name: entryName, isGuest, slots: [] });
+                    }
+                    byName.get(key)!.slots.push({
+                        weekday: slot.weekday,
+                        startTime: slot.start_time,
+                        trainerName: slot.trainer?.profile?.full_name || '',
+                    });
+                }
+            }
+        }
+
+        return { matchedSlotIds, matchedEntryIds, grouped: Array.from(byName.values()) };
+    }, [searchQuery, tab, trainerFilteredBase, trainerFilteredWeek]);
+
+    const isSearching = searchQuery.trim().length > 0;
+
     function participantName(entry: { student?: JoinedStudent | null; guest_name?: string | null }) {
         return entry.student?.full_name || entry.guest_name || 'Vaga livre';
     }
 
-    function participantMeta(entry: { student?: JoinedStudent | null; guest_origin?: string | null }, slotTrainerName?: string) {
-        return entry.student?.trainer?.profile?.full_name || entry.guest_origin || slotTrainerName || '';
-    }
-
     function openNewSlot(mode: TabMode, weekday?: number, startTime?: string) {
         setEditingMode(mode);
-        setAutoAddEntry(false);
         setEditingSlot(weekday ? ({
             id: '',
             trainer_id: selectedTrainer === 'all' ? trainers[0]?.id || '' : selectedTrainer,
@@ -153,14 +184,6 @@ export function AttendanceWorkspace({
     function openExistingSlot(mode: TabMode, slot: BaseSlot | WeekSlot) {
         setEditingMode(mode);
         setEditingSlot(slot);
-        setAutoAddEntry(false);
-        setDialogOpen(true);
-    }
-
-    function openVacancy(mode: TabMode, slot: BaseSlot | WeekSlot) {
-        setEditingMode(mode);
-        setEditingSlot(slot);
-        setAutoAddEntry(true);
         setDialogOpen(true);
     }
 
@@ -169,7 +192,7 @@ export function AttendanceWorkspace({
             try {
                 const link = await getOrCreateAttendancePublicLink();
                 setLinkState(link);
-                toast.success('Link da recepcao pronto');
+                toast.success('Link da recepção pronto');
             } catch (error) {
                 console.error(error);
                 toast.error(error instanceof Error ? error.message : 'Erro ao gerar link');
@@ -219,30 +242,28 @@ export function AttendanceWorkspace({
     return (
         <div className="space-y-6">
             <section className="overflow-hidden rounded-[28px] border border-zinc-200 bg-white shadow-[0_24px_60px_-42px_rgba(24,24,27,0.32)]">
-                <div className="border-b border-zinc-200 bg-[linear-gradient(135deg,#214728_0%,#406733_44%,#899f47_100%)] text-white">
+                <div className="border-b border-zinc-200 bg-zinc-900 text-white">
                     <div className="grid gap-4 px-5 py-4 lg:grid-cols-[minmax(0,2fr)_minmax(280px,0.9fr)] lg:px-6">
                         <div className="space-y-3">
-                            <div className="flex flex-wrap items-center gap-2">
-                                <p className="text-[11px] font-semibold uppercase tracking-[0.32em] text-emerald-100/80">
-                                    {publicMode ? 'Recepcao' : 'Planilha operacional'}
-                                </p>
-                            </div>
+                            <p className="text-xs font-medium text-zinc-400">
+                                {publicMode ? 'Recepção' : 'Planilha operacional'}
+                            </p>
 
                             <div className="max-w-3xl">
-                                <h1 className="font-serif text-[2rem] leading-none sm:text-[2.35rem]">
+                                <h1 className="text-[1.75rem] font-semibold leading-none sm:text-[2rem]">
                                     Agenda Propulse
                                 </h1>
-                                <p className="mt-2 max-w-2xl text-sm text-emerald-50/80">
-                                    {publicMode ? 'Agenda da recepcao.' : 'Agenda operacional do estudio.'}
+                                <p className="mt-2 max-w-2xl text-sm text-zinc-400">
+                                    {publicMode ? 'Agenda da recepção.' : 'Agenda operacional do estúdio.'}
                                 </p>
                             </div>
                         </div>
 
                         <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-                            <MetricBox label="Horarios" value={String(summary.slots)} />
+                            <MetricBox label="Horários" value={String(summary.slots)} />
                             <MetricBox label="Vagas" value={String(summary.capacity)} />
-                            <MetricBox label="OK" value={String(summary.present)} />
-                            <MetricBox label="Falta" value={String(summary.absent)} />
+                            <MetricBox label="Presentes" value={String(summary.present)} />
+                            <MetricBox label="Faltas" value={String(summary.absent)} />
                         </div>
                     </div>
                 </div>
@@ -262,7 +283,7 @@ export function AttendanceWorkspace({
                             </div>
                             <Link href={`${basePath}?week=${nextWeek}`}>
                                 <Button variant="outline" size="sm">
-                                    Proxima semana
+                                    Próxima semana
                                     <ChevronRight className="h-4 w-4" />
                                 </Button>
                             </Link>
@@ -273,7 +294,7 @@ export function AttendanceWorkspace({
                                 Aba da semana
                             </TabButton>
                             <TabButton active={tab === 'base'} onClick={() => setTab('base')}>
-                                Horarios fixos
+                                Horários fixos
                             </TabButton>
 
                             {(role === 'manager' || publicMode) && (
@@ -293,7 +314,7 @@ export function AttendanceWorkspace({
 
                             <Button onClick={() => openNewSlot(tab)}>
                                 <Plus className="h-4 w-4" />
-                                {tab === 'week' ? 'Novo horario da semana' : 'Novo horario fixo'}
+                                {tab === 'week' ? 'Novo horário da semana' : 'Novo horário fixo'}
                             </Button>
                         </div>
                     </div>
@@ -302,24 +323,73 @@ export function AttendanceWorkspace({
                 <div className="p-5 lg:p-6">
                     <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                         <h2 className="text-lg font-semibold text-zinc-950">
-                            {tab === 'week' ? 'Aba da semana' : 'Horarios fixos'}
+                            {tab === 'week' ? 'Aba da semana' : 'Horários fixos'}
                         </h2>
-                        <div className="flex flex-wrap gap-2">
+                        <div className="flex items-center gap-2">
+                            <div className="relative">
+                                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+                                <input
+                                    type="text"
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    placeholder="Buscar aluno..."
+                                    className="h-9 w-48 rounded-full border border-zinc-200 bg-white pl-9 pr-8 text-sm text-zinc-700 outline-none placeholder:text-zinc-400 focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400 xl:w-64"
+                                />
+                                {searchQuery && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setSearchQuery('')}
+                                        className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-full p-0.5 text-zinc-400 hover:text-zinc-600"
+                                    >
+                                        <X className="h-3.5 w-3.5" />
+                                    </button>
+                                )}
+                            </div>
                             <SurfacePill label="Linhas" value={String(timeRows.length)} />
                             <SurfacePill label="Pendentes" value={String(summary.pending)} />
                         </div>
                     </div>
+
+                    {isSearching && (
+                        <div className="mb-4 rounded-xl border border-zinc-200 bg-white p-3 shadow-sm">
+                            {searchResults.grouped.length === 0 ? (
+                                <p className="text-sm text-zinc-400">Nenhum aluno encontrado</p>
+                            ) : (
+                                <div className="space-y-2">
+                                    {searchResults.grouped.map((group) => (
+                                        <div key={`${group.name}|${group.isGuest}`}>
+                                            <p className="text-sm font-medium text-zinc-900">
+                                                {group.name}
+                                                {group.isGuest && <span className="ml-1 text-xs font-normal text-zinc-400">(avulso)</span>}
+                                            </p>
+                                            <p className="text-xs text-zinc-500">
+                                                {group.slots.map((s, i) => {
+                                                    const dayLabel = WEEKDAY_OPTIONS.find((d) => d.value === s.weekday)?.label || '';
+                                                    return `${i > 0 ? ' · ' : ''}${dayLabel} ${formatTimeLabel(s.startTime)}`;
+                                                }).join('')}
+                                            </p>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    )}
+
                     <SpreadsheetGrid
                         mode={tab}
                         weekDays={weekDays}
                         timeRows={timeRows}
                         baseSlots={trainerFilteredBase}
                         weekSlots={trainerFilteredWeek}
+                        students={students}
+                        publicMode={publicMode}
+                        publicToken={publicToken}
                         onNewCell={openNewSlot}
                         onEditCell={openExistingSlot}
-                        onVacancyClick={openVacancy}
                         participantName={participantName}
-                        participantMeta={participantMeta}
+                        isSearching={isSearching}
+                        matchedSlotIds={searchResults.matchedSlotIds}
+                        matchedEntryIds={searchResults.matchedEntryIds}
                     />
                 </div>
             </section>
@@ -328,18 +398,18 @@ export function AttendanceWorkspace({
                 <section className="overflow-hidden rounded-[28px] border border-zinc-200 bg-white shadow-[0_20px_50px_-42px_rgba(24,24,27,0.32)]">
                     <div className="grid gap-5 px-5 py-5 lg:grid-cols-[minmax(0,1fr)_minmax(320px,0.85fr)] lg:px-6">
                         <div>
-                            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-zinc-400">
-                                Link da recepcao
+                            <p className="text-xs font-medium text-zinc-400">
+                                Link da recepção
                             </p>
                             <h2 className="mt-2 text-xl font-semibold text-zinc-900">
-                                Agenda publica
+                                Agenda pública
                             </h2>
                             <p className="mt-2 max-w-lg text-sm text-zinc-500">
-                                Link para a recepcao operar a agenda sem login.
+                                Link para a recepção operar a agenda sem login.
                             </p>
 
                             <div className="mt-4 flex flex-wrap gap-2">
-                                <SurfacePill label="Recepcao" value="Sem login" />
+                                <SurfacePill label="Recepção" value="Sem login" />
                                 <SurfacePill label="Escopo" value="Agenda" />
                             </div>
                         </div>
@@ -371,7 +441,7 @@ export function AttendanceWorkspace({
                                 <div className="rounded-2xl border border-dashed border-zinc-300 bg-white p-5">
                                     <Button onClick={handleEnsureLink} isLoading={isPending}>
                                         <KeyRound className="h-4 w-4" />
-                                        Gerar link da recepcao
+                                        Gerar link da recepção
                                     </Button>
                                 </div>
                             )}
@@ -388,11 +458,9 @@ export function AttendanceWorkspace({
                 publicMode={publicMode}
                 publicToken={publicToken}
                 slot={editingSlot as any}
-                students={students}
                 trainers={trainers}
                 defaultTrainerId={selectedTrainer === 'all' ? undefined : selectedTrainer}
                 weekStart={weekStart}
-                autoAddEntry={autoAddEntry}
             />
         </div>
     );
@@ -404,22 +472,30 @@ function SpreadsheetGrid({
     timeRows,
     baseSlots,
     weekSlots,
+    students,
+    publicMode,
+    publicToken,
     onNewCell,
     onEditCell,
-    onVacancyClick,
     participantName,
-    participantMeta,
+    isSearching,
+    matchedSlotIds,
+    matchedEntryIds,
 }: {
     mode: TabMode;
     weekDays: AttendanceWorkspaceProps['weekDays'];
     timeRows: string[];
     baseSlots: BaseSlot[];
     weekSlots: WeekSlot[];
+    students: JoinedStudent[];
+    publicMode?: boolean;
+    publicToken?: string;
     onNewCell: (mode: TabMode, weekday?: number, startTime?: string) => void;
     onEditCell: (mode: TabMode, slot: BaseSlot | WeekSlot) => void;
-    onVacancyClick: (mode: TabMode, slot: BaseSlot | WeekSlot) => void;
     participantName: (entry: { student?: JoinedStudent | null; guest_name?: string | null }) => string;
-    participantMeta: (entry: { student?: JoinedStudent | null; guest_origin?: string | null }, slotTrainerName?: string) => string;
+    isSearching: boolean;
+    matchedSlotIds: Set<string>;
+    matchedEntryIds: Set<string>;
 }) {
     const slots = mode === 'base' ? baseSlots : weekSlots;
 
@@ -428,19 +504,19 @@ function SpreadsheetGrid({
             <div className="rounded-[28px] border border-zinc-200 bg-[linear-gradient(180deg,#fafaf9_0%,#f3f4f6_100%)] p-4">
                 <div className="rounded-[24px] border border-dashed border-zinc-300 bg-white px-6 py-14 text-center">
                     <h3 className="text-2xl font-semibold text-zinc-900">
-                        Nenhum horario criado
+                        Nenhum horário criado
                     </h3>
                     <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
                         <Button onClick={() => onNewCell(mode)}>
                             <Plus className="h-4 w-4" />
-                            {mode === 'week' ? 'Criar horario da semana' : 'Criar horario fixo'}
+                            {mode === 'week' ? 'Criar horário da semana' : 'Criar horário fixo'}
                         </Button>
                         <button
                             type="button"
                             onClick={() => onNewCell(mode, 1, '06:00')}
                             className="rounded-full border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-600 transition hover:border-emerald-300 hover:text-emerald-700"
                         >
-                            Comecar por segunda, 06:00
+                            Começar por segunda, 06:00
                         </button>
                     </div>
                 </div>
@@ -456,35 +532,39 @@ function SpreadsheetGrid({
                     weekDays={weekDays}
                     timeRows={timeRows}
                     slots={slots}
+                    students={students}
+                    publicMode={publicMode}
+                    publicToken={publicToken}
                     onNewCell={onNewCell}
                     onEditCell={onEditCell}
-                    onVacancyClick={onVacancyClick}
                     participantName={participantName}
-                    participantMeta={participantMeta}
+                    isSearching={isSearching}
+                    matchedSlotIds={matchedSlotIds}
+                    matchedEntryIds={matchedEntryIds}
                 />
             </div>
 
             <div className="hidden xl:block overflow-x-auto">
                 <div className="min-w-[1120px] rounded-[28px] border border-zinc-200 bg-[linear-gradient(180deg,#fcfcfb_0%,#f1f5f2_100%)] p-3">
                     <div className="grid grid-cols-[92px_repeat(5,minmax(200px,1fr))] gap-2.5">
-                    <div className="rounded-[20px] bg-zinc-950 px-4 py-4 text-xs font-semibold uppercase tracking-[0.24em] text-zinc-300">
+                    <div className="rounded-[20px] bg-zinc-800 px-4 py-4 text-xs font-medium text-zinc-400">
                         Hora
                     </div>
                     {weekDays.map((day, index) => (
                         <div key={day.isoDate} className="rounded-[20px] bg-white px-4 py-4 shadow-sm ring-1 ring-zinc-200">
                             <div className="flex items-start justify-between gap-3">
                                 <div>
-                                    <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-emerald-700">{day.label}</p>
+                                    <p className="text-xs font-semibold text-emerald-700">{day.label}</p>
                                     <p className="mt-1 text-lg font-semibold text-zinc-900">
                                         {format(day.date, "dd 'de' MMM", { locale: ptBR })}
                                     </p>
                                 </div>
-                                <span className="rounded-full bg-zinc-100 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-zinc-500">
+                                <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] font-medium text-zinc-400">
                                     D{index + 1}
                                 </span>
                             </div>
                             <p className="mt-3 text-xs text-zinc-400">
-                                Clique nas vagas livres para preencher rapido.
+                                Clique nas vagas livres para preencher rápido.
                             </p>
                         </div>
                     ))}
@@ -497,11 +577,15 @@ function SpreadsheetGrid({
                             rowIndex={index}
                             weekDays={weekDays}
                             slots={slots}
+                            students={students}
+                            publicMode={publicMode}
+                            publicToken={publicToken}
                             onNewCell={onNewCell}
                             onEditCell={onEditCell}
-                            onVacancyClick={onVacancyClick}
                             participantName={participantName}
-                            participantMeta={participantMeta}
+                            isSearching={isSearching}
+                            matchedSlotIds={matchedSlotIds}
+                            matchedEntryIds={matchedEntryIds}
                         />
                     ))}
                     </div>
@@ -517,28 +601,36 @@ function GridRow({
     rowIndex,
     weekDays,
     slots,
+    students,
+    publicMode,
+    publicToken,
     onNewCell,
     onEditCell,
-    onVacancyClick,
     participantName,
-    participantMeta,
+    isSearching,
+    matchedSlotIds,
+    matchedEntryIds,
 }: {
     mode: TabMode;
     time: string;
     rowIndex: number;
     weekDays: AttendanceWorkspaceProps['weekDays'];
     slots: (BaseSlot | WeekSlot)[];
+    students: JoinedStudent[];
+    publicMode?: boolean;
+    publicToken?: string;
     onNewCell: (mode: TabMode, weekday?: number, startTime?: string) => void;
     onEditCell: (mode: TabMode, slot: BaseSlot | WeekSlot) => void;
-    onVacancyClick: (mode: TabMode, slot: BaseSlot | WeekSlot) => void;
     participantName: (entry: any) => string;
-    participantMeta: (entry: any, trainerName?: string) => string;
+    isSearching: boolean;
+    matchedSlotIds: Set<string>;
+    matchedEntryIds: Set<string>;
 }) {
     return (
         <>
             <div className={cn(
-                'rounded-[20px] px-4 py-5 text-center text-xl font-semibold text-white shadow-sm',
-                rowIndex % 2 === 0 ? 'bg-zinc-950' : 'bg-zinc-900'
+                'rounded-[20px] px-4 py-5 text-center text-xl font-semibold text-white',
+                rowIndex % 2 === 0 ? 'bg-zinc-800' : 'bg-zinc-700'
             )}>
                 {formatTimeLabel(time)}
             </div>
@@ -551,12 +643,13 @@ function GridRow({
                             key={`${time}-${day.isoDate}`}
                             type="button"
                             onClick={() => onNewCell(mode, day.value, time.slice(0, 5))}
-                            className="min-h-[154px] rounded-[20px] border border-dashed border-zinc-300 bg-white px-4 py-5 text-left text-sm text-zinc-400 transition hover:border-emerald-300 hover:bg-emerald-50/40 hover:text-emerald-700"
+                            title="Adicionar horário"
+                            className={cn(
+                                'flex min-h-[120px] items-center justify-center rounded-[20px] border border-dashed border-zinc-300 bg-white text-zinc-300 transition-opacity duration-200 hover:border-emerald-300 hover:bg-emerald-50/40 hover:text-emerald-600',
+                                isSearching && 'opacity-30'
+                            )}
                         >
-                            <span className="font-medium">Adicionar horario</span>
-                            <p className="mt-2 text-xs text-zinc-400">
-                                Abra um bloco novo nessa combinacao de dia e hora.
-                            </p>
+                            <Plus className="h-6 w-6" />
                         </button>
                     );
                 }
@@ -564,80 +657,99 @@ function GridRow({
                 return (
                     <div
                         key={`${time}-${day.isoDate}`}
-                        className="min-h-[154px] rounded-[20px] border border-zinc-200 bg-white p-2.5 text-left shadow-sm"
+                        className="min-h-[120px] rounded-[20px] border border-zinc-200 bg-white p-2 text-left shadow-sm"
                     >
-                        <div className="space-y-2.5">
-                            {cellSlots.map((slot, slotIndex) => (
-                                <div
-                                    key={slot.id}
-                                    className={cn(
-                                        'rounded-[18px] border bg-zinc-50/80 p-3 text-left transition hover:border-emerald-300 hover:bg-white hover:shadow-sm',
-                                        slotIndex === 0 ? 'border-zinc-200' : 'border-zinc-200/80'
-                                    )}
-                                >
-                                    <div className="flex items-start justify-between gap-3">
-                                        <div className="min-w-0 space-y-1">
-                                            {slot.trainer?.profile?.full_name && (
-                                                <p className="truncate text-[11px] font-semibold uppercase tracking-[0.22em] text-emerald-700">
-                                                    {slot.trainer.profile.full_name}
-                                                </p>
-                                            )}
-                                            <div className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-600 ring-1 ring-zinc-200">
-                                                <Users className="h-3.5 w-3.5" />
-                                                {slot.entries.length}/{slot.capacity}
-                                            </div>
-                                        </div>
+                        <div className="space-y-2">
+                            {cellSlots.map((slot, slotIndex) => {
+                                const remaining = slot.capacity - slot.entries.length;
+                                const capacityColor = remaining === slot.capacity
+                                    ? 'bg-zinc-50 text-zinc-400'
+                                    : remaining === 0
+                                        ? 'bg-red-50 text-red-500'
+                                        : remaining === 1
+                                            ? 'bg-amber-50 text-amber-600'
+                                            : 'bg-emerald-50 text-emerald-600';
+
+                                return (
+                                    <SlotCellPopover
+                                        key={slot.id}
+                                        slot={slot}
+                                        students={students}
+                                        mode={mode}
+                                        publicMode={publicMode}
+                                        publicToken={publicToken}
+                                        onEditSlot={() => onEditCell(mode, slot)}
+                                    >
                                         <button
                                             type="button"
-                                            onClick={() => onEditCell(mode, slot)}
-                                            className="rounded-full border border-zinc-200 bg-white px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-500 transition hover:border-emerald-300 hover:text-emerald-700"
+                                            className={cn(
+                                                'w-full rounded-[16px] border bg-zinc-50/80 p-2.5 text-left transition-all duration-200 hover:border-emerald-300 hover:bg-white hover:shadow-sm',
+                                                slotIndex === 0 ? 'border-zinc-200' : 'border-zinc-200/80',
+                                                isSearching && matchedSlotIds.has(slot.id) && 'ring-2 ring-emerald-400 border-emerald-300',
+                                                isSearching && !matchedSlotIds.has(slot.id) && 'opacity-40',
+                                            )}
                                         >
-                                            Editar
-                                        </button>
-                                    </div>
-
-                                    <div className="mt-3 space-y-1.5">
-                                        {Array.from({ length: slot.capacity }).map((_, index) => {
-                                            const entry = slot.entries[index];
-
-                                            if (!entry) {
-                                                return (
-                                                    <button
-                                                        key={index}
-                                                        type="button"
-                                                        onClick={() => onVacancyClick(mode, slot)}
-                                                        className="flex w-full items-center justify-between rounded-xl border border-dashed border-zinc-200 bg-white/70 px-3 py-2 text-left text-xs text-zinc-400 transition hover:border-emerald-300 hover:text-emerald-700"
-                                                    >
-                                                        <span>Vaga livre</span>
-                                                        <span className="text-[10px] uppercase tracking-[0.18em]">+ aluno</span>
-                                                    </button>
-                                                );
-                                            }
-
-                                            return (
-                                                <div key={entry.id} className="rounded-xl bg-white px-3 py-2 ring-1 ring-zinc-200">
-                                                    <div className="flex items-center justify-between gap-2">
-                                                        <p className="truncate text-sm font-medium text-zinc-900">{participantName(entry)}</p>
-                                                        {'status' in entry && (
-                                                            <StatusMark status={entry.status} />
-                                                        )}
-                                                    </div>
-                                                    <p className="mt-1 truncate text-[11px] uppercase tracking-[0.2em] text-zinc-500">
-                                                        {participantMeta(entry, slot.trainer?.profile?.full_name)}
+                                            <div className="flex items-center justify-between gap-2">
+                                                {slot.trainer?.profile?.full_name && (
+                                                    <p className="truncate text-sm font-medium text-zinc-700">
+                                                        {slot.trainer.profile.full_name}
                                                     </p>
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
-                                </div>
-                            ))}
+                                                )}
+                                                <span className={cn('shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold', capacityColor)}>
+                                                    {slot.entries.length}/{slot.capacity}
+                                                </span>
+                                            </div>
+
+                                            <div className="mt-2 max-h-[200px] space-y-1 overflow-y-auto">
+                                                {(slot.entries as any[]).map((entry: any) => {
+                                                    const entryHighlighted = isSearching && matchedEntryIds.has(entry.id);
+
+                                                    if (mode === 'week' && 'status' in entry) {
+                                                        return (
+                                                            <AttendanceCheckbox
+                                                                key={entry.id}
+                                                                entryId={entry.id}
+                                                                status={entry.status}
+                                                                name={participantName(entry)}
+                                                                isGuest={!entry.student_id && !!entry.guest_name}
+                                                                publicMode={publicMode}
+                                                                publicToken={publicToken}
+                                                                highlighted={entryHighlighted}
+                                                            />
+                                                        );
+                                                    }
+
+                                                    return (
+                                                        <div key={entry.id} className={cn(
+                                                            'min-h-[28px] rounded-lg bg-white px-2.5 py-1.5 ring-1 ring-zinc-200',
+                                                            entryHighlighted && 'ring-2 ring-emerald-400 bg-emerald-50',
+                                                        )}>
+                                                            <p className={cn(
+                                                                'truncate text-sm font-medium text-zinc-900',
+                                                                entryHighlighted && 'text-emerald-700 font-semibold',
+                                                            )}>{participantName(entry)}</p>
+                                                        </div>
+                                                    );
+                                                })}
+
+                                                {remaining > 0 && slot.entries.length > 0 && (
+                                                    <div className="flex min-h-[28px] items-center rounded-lg border border-dashed border-zinc-200 bg-white/70 px-2.5 py-1.5 text-xs text-zinc-400">
+                                                        + Adicionar aluno
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </button>
+                                    </SlotCellPopover>
+                                );
+                            })}
 
                             <button
                                 type="button"
                                 onClick={() => onNewCell(mode, day.value, time.slice(0, 5))}
-                                className="w-full rounded-[18px] border border-dashed border-zinc-300 px-3 py-3 text-center text-xs font-medium text-zinc-500 transition hover:border-emerald-300 hover:text-emerald-700"
+                                title="Adicionar outro treinador"
+                                className="flex w-full items-center justify-center rounded-[16px] border border-dashed border-zinc-300 py-2 text-zinc-300 transition hover:border-emerald-300 hover:text-emerald-600"
                             >
-                                Adicionar outro treinador
+                                <Plus className="h-4 w-4" />
                             </button>
                         </div>
                     </div>
@@ -647,24 +759,10 @@ function GridRow({
     );
 }
 
-function StatusMark({ status }: { status: AttendanceStatus }) {
-    const config = {
-        pending: 'bg-zinc-200 text-zinc-700',
-        present: 'bg-emerald-100 text-emerald-700',
-        absent: 'bg-red-100 text-red-700',
-    }[status];
-
-    return (
-        <span className={cn('rounded-full px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.2em]', config)}>
-            {status === 'pending' ? '-' : status === 'present' ? 'OK' : 'Falta'}
-        </span>
-    );
-}
-
 function MetricBox({ label, value }: { label: string; value: string }) {
     return (
-        <div className="rounded-[22px] border border-white/15 bg-white/10 px-4 py-3 backdrop-blur-sm">
-            <p className="text-[11px] uppercase tracking-[0.24em] text-emerald-50/70">{label}</p>
+        <div className="rounded-[22px] border border-white/10 bg-white/10 px-4 py-3 backdrop-blur-sm">
+            <p className="text-xs text-zinc-400">{label}</p>
             <p className="mt-2 text-2xl font-semibold text-white">{value}</p>
         </div>
     );
@@ -675,21 +773,29 @@ function MobileAgendaStack({
     weekDays,
     timeRows,
     slots,
+    students,
+    publicMode,
+    publicToken,
     onNewCell,
     onEditCell,
-    onVacancyClick,
     participantName,
-    participantMeta,
+    isSearching,
+    matchedSlotIds,
+    matchedEntryIds,
 }: {
     mode: TabMode;
     weekDays: AttendanceWorkspaceProps['weekDays'];
     timeRows: string[];
     slots: (BaseSlot | WeekSlot)[];
+    students: JoinedStudent[];
+    publicMode?: boolean;
+    publicToken?: string;
     onNewCell: (mode: TabMode, weekday?: number, startTime?: string) => void;
     onEditCell: (mode: TabMode, slot: BaseSlot | WeekSlot) => void;
-    onVacancyClick: (mode: TabMode, slot: BaseSlot | WeekSlot) => void;
     participantName: (entry: any) => string;
-    participantMeta: (entry: any, trainerName?: string) => string;
+    isSearching: boolean;
+    matchedSlotIds: Set<string>;
+    matchedEntryIds: Set<string>;
 }) {
     return (
         <div className="space-y-4">
@@ -702,7 +808,7 @@ function MobileAgendaStack({
                         <div className="border-b border-zinc-200 bg-zinc-50 px-4 py-4">
                             <div className="flex items-start justify-between gap-3">
                                 <div>
-                                    <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-emerald-700">{day.label}</p>
+                                    <p className="text-xs font-semibold text-emerald-700">{day.label}</p>
                                     <h3 className="mt-1 text-lg font-semibold text-zinc-900">
                                         {format(day.date, "dd 'de' MMM", { locale: ptBR })}
                                     </h3>
@@ -710,9 +816,9 @@ function MobileAgendaStack({
                                 <button
                                     type="button"
                                     onClick={() => onNewCell(mode, day.value, '06:00')}
-                                    className="rounded-full border border-zinc-300 bg-white px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.18em] text-zinc-600"
+                                    className="rounded-full border border-zinc-300 bg-white px-3 py-1.5 text-xs font-medium text-zinc-600"
                                 >
-                                    + horario
+                                    + horário
                                 </button>
                             </div>
                         </div>
@@ -724,7 +830,7 @@ function MobileAgendaStack({
                                     onClick={() => onNewCell(mode, day.value, '06:00')}
                                     className="w-full rounded-[18px] border border-dashed border-zinc-300 px-4 py-6 text-left text-sm text-zinc-500 transition hover:border-emerald-300 hover:text-emerald-700"
                                 >
-                                    Adicionar primeiro horario do dia
+                                    Adicionar primeiro horário do dia
                                 </button>
                             ) : (
                                 dayTimes.map((time) => {
@@ -732,71 +838,93 @@ function MobileAgendaStack({
 
                                     return (
                                         <div key={`${day.isoDate}-${time}`} className="space-y-2">
-                                            <div className="flex items-center justify-between rounded-[18px] bg-zinc-950 px-4 py-3 text-white">
+                                            <div className="flex items-center justify-between rounded-[18px] bg-zinc-800 px-4 py-3 text-white">
                                                 <span className="text-lg font-semibold">{formatTimeLabel(time)}</span>
                                                 <button
                                                     type="button"
                                                     onClick={() => onNewCell(mode, day.value, time.slice(0, 5))}
-                                                    className="rounded-full border border-white/15 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-100"
+                                                    className="rounded-full border border-white/15 px-3 py-1 text-xs font-medium text-zinc-200"
                                                 >
                                                     + treinador
                                                 </button>
                                             </div>
 
-                                            {timeSlots.map((slot) => (
-                                                <div key={slot.id} className="rounded-[18px] border border-zinc-200 bg-zinc-50/80 p-3">
-                                                    <div className="flex items-start justify-between gap-3">
-                                                        <div className="min-w-0">
-                                                            <p className="truncate text-[11px] font-semibold uppercase tracking-[0.22em] text-emerald-700">
-                                                                {slot.trainer?.profile?.full_name || 'Treinador'}
-                                                            </p>
-                                                            <div className="mt-2 inline-flex items-center gap-2 rounded-full bg-white px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-600 ring-1 ring-zinc-200">
-                                                                <Users className="h-3.5 w-3.5" />
-                                                                {slot.entries.length}/{slot.capacity}
+                                            {timeSlots.map((slot) => {
+                                                const remaining = slot.capacity - slot.entries.length;
+                                                const capacityColor = remaining === slot.capacity
+                                                    ? 'bg-zinc-50 text-zinc-400'
+                                                    : remaining === 0
+                                                        ? 'bg-red-50 text-red-500'
+                                                        : remaining === 1
+                                                            ? 'bg-amber-50 text-amber-600'
+                                                            : 'bg-emerald-50 text-emerald-600';
+
+                                                return (
+                                                    <SlotCellPopover
+                                                        key={slot.id}
+                                                        slot={slot}
+                                                        students={students}
+                                                        mode={mode}
+                                                        publicMode={publicMode}
+                                                        publicToken={publicToken}
+                                                        onEditSlot={() => onEditCell(mode, slot)}
+                                                    >
+                                                        <button type="button" className={cn(
+                                                            'w-full rounded-[18px] border border-zinc-200 bg-zinc-50/80 p-3 text-left transition-all duration-200',
+                                                            isSearching && matchedSlotIds.has(slot.id) && 'ring-2 ring-emerald-400 border-emerald-300',
+                                                            isSearching && !matchedSlotIds.has(slot.id) && 'opacity-40',
+                                                        )}>
+                                                            <div className="flex items-center justify-between gap-3">
+                                                                <p className="truncate text-sm font-medium text-zinc-700">
+                                                                    {slot.trainer?.profile?.full_name || 'Treinador'}
+                                                                </p>
+                                                                <span className={cn('shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold', capacityColor)}>
+                                                                    {slot.entries.length}/{slot.capacity}
+                                                                </span>
                                                             </div>
-                                                        </div>
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => onEditCell(mode, slot)}
-                                                            className="rounded-full border border-zinc-200 bg-white px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-500"
-                                                        >
-                                                            Editar
-                                                        </button>
-                                                    </div>
 
-                                                    <div className="mt-3 space-y-1.5">
-                                                        {Array.from({ length: slot.capacity }).map((_, index) => {
-                                                            const entry = slot.entries[index];
+                                                            <div className="mt-2.5 space-y-1.5">
+                                                                {(slot.entries as any[]).map((entry: any) => {
+                                                                    const entryHighlighted = isSearching && matchedEntryIds.has(entry.id);
 
-                                                            if (!entry) {
-                                                                return (
-                                                                    <button
-                                                                        key={index}
-                                                                        type="button"
-                                                                        onClick={() => onVacancyClick(mode, slot)}
-                                                                        className="flex w-full items-center justify-between rounded-xl border border-dashed border-zinc-200 bg-white px-3 py-2 text-left text-xs text-zinc-400"
-                                                                    >
-                                                                        <span>Vaga livre</span>
-                                                                        <span className="text-[10px] uppercase tracking-[0.18em]">+ aluno</span>
-                                                                    </button>
-                                                                );
-                                                            }
+                                                                    if (mode === 'week' && 'status' in entry) {
+                                                                        return (
+                                                                            <AttendanceCheckbox
+                                                                                key={entry.id}
+                                                                                entryId={entry.id}
+                                                                                status={entry.status}
+                                                                                name={participantName(entry)}
+                                                                                isGuest={!entry.student_id && !!entry.guest_name}
+                                                                                publicMode={publicMode}
+                                                                                publicToken={publicToken}
+                                                                                highlighted={entryHighlighted}
+                                                                            />
+                                                                        );
+                                                                    }
 
-                                                            return (
-                                                                <div key={entry.id} className="rounded-xl bg-white px-3 py-2 ring-1 ring-zinc-200">
-                                                                    <div className="flex items-center justify-between gap-2">
-                                                                        <p className="truncate text-sm font-medium text-zinc-900">{participantName(entry)}</p>
-                                                                        {'status' in entry && <StatusMark status={entry.status} />}
+                                                                    return (
+                                                                        <div key={entry.id} className={cn(
+                                                                            'min-h-[28px] rounded-lg bg-white px-2.5 py-1.5 ring-1 ring-zinc-200',
+                                                                            entryHighlighted && 'ring-2 ring-emerald-400 bg-emerald-50',
+                                                                        )}>
+                                                                            <p className={cn(
+                                                                                'truncate text-sm font-medium text-zinc-900',
+                                                                                entryHighlighted && 'text-emerald-700 font-semibold',
+                                                                            )}>{participantName(entry)}</p>
+                                                                        </div>
+                                                                    );
+                                                                })}
+
+                                                                {remaining > 0 && slot.entries.length > 0 && (
+                                                                    <div className="flex min-h-[28px] items-center rounded-lg border border-dashed border-zinc-200 bg-white/70 px-2.5 py-1.5 text-xs text-zinc-400">
+                                                                        + Adicionar aluno
                                                                     </div>
-                                                                    <p className="mt-1 truncate text-[11px] uppercase tracking-[0.2em] text-zinc-500">
-                                                                        {participantMeta(entry, slot.trainer?.profile?.full_name)}
-                                                                    </p>
-                                                                </div>
-                                                            );
-                                                        })}
-                                                    </div>
-                                                </div>
-                                            ))}
+                                                                )}
+                                                            </div>
+                                                        </button>
+                                                    </SlotCellPopover>
+                                                );
+                                            })}
                                         </div>
                                     );
                                 })
@@ -812,7 +940,7 @@ function MobileAgendaStack({
 function SurfacePill({ label, value }: { label: string; value: string }) {
     return (
         <div className="rounded-full border border-zinc-200 bg-white px-3 py-2">
-            <span className="text-[10px] uppercase tracking-[0.18em] text-zinc-400">{label}</span>
+            <span className="text-xs text-zinc-400">{label}</span>
             <span className="ml-2 text-sm font-medium text-zinc-700">{value}</span>
         </div>
     );

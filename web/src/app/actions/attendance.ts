@@ -507,3 +507,228 @@ export async function deletePublicWeekScheduleSlot(accessToken: string, slotId: 
 
     return { success: true };
 }
+
+// ── Granular entry actions ──────────────────────────────────────────
+
+async function addEntryInternal(
+    supabase: any,
+    slotId: string,
+    slotType: 'base' | 'week',
+    studentId?: string,
+    guestName?: string,
+    guestOrigin?: string,
+) {
+    const slotTable = slotType === 'base' ? 'schedule_base_slots' : 'schedule_week_slots';
+    const entryTable = slotType === 'base' ? 'schedule_base_entries' : 'schedule_week_entries';
+    const fkColumn = slotType === 'base' ? 'slot_id' : 'week_slot_id';
+
+    const { data: slot, error: slotError } = await supabase
+        .from(slotTable)
+        .select('capacity')
+        .eq('id', slotId)
+        .single();
+
+    if (slotError || !slot) {
+        throw new Error('Horario nao encontrado');
+    }
+
+    const { count } = await supabase
+        .from(entryTable)
+        .select('id', { count: 'exact', head: true })
+        .eq(fkColumn, slotId);
+
+    if ((count ?? 0) >= slot.capacity) {
+        throw new Error('Horario lotado');
+    }
+
+    const nextPosition = (count ?? 0) + 1;
+
+    const entry: Record<string, unknown> = {
+        [fkColumn]: slotId,
+        student_id: studentId || null,
+        guest_name: studentId ? null : guestName?.trim() || null,
+        guest_origin: studentId ? null : guestOrigin?.trim() || null,
+        position: nextPosition,
+        notes: null,
+    };
+
+    if (slotType === 'week') {
+        entry.status = 'pending';
+    }
+
+    const { error } = await supabase.from(entryTable).insert(entry);
+
+    if (error) {
+        console.error(`Error adding entry to ${entryTable}:`, error);
+        throw new Error('Nao foi possivel adicionar o participante');
+    }
+}
+
+async function removeEntryInternal(
+    supabase: any,
+    entryId: string,
+    slotType: 'base' | 'week',
+) {
+    const entryTable = slotType === 'base' ? 'schedule_base_entries' : 'schedule_week_entries';
+    const fkColumn = slotType === 'base' ? 'slot_id' : 'week_slot_id';
+
+    const { data: entry, error: fetchError } = await supabase
+        .from(entryTable)
+        .select(`id, ${fkColumn}`)
+        .eq('id', entryId)
+        .single();
+
+    if (fetchError || !entry) {
+        throw new Error('Participante nao encontrado');
+    }
+
+    const slotId = entry[fkColumn];
+
+    const { error: deleteError } = await supabase
+        .from(entryTable)
+        .delete()
+        .eq('id', entryId);
+
+    if (deleteError) {
+        console.error(`Error removing entry from ${entryTable}:`, deleteError);
+        throw new Error('Nao foi possivel remover o participante');
+    }
+
+    const { data: remaining } = await supabase
+        .from(entryTable)
+        .select('id')
+        .eq(fkColumn, slotId)
+        .order('position');
+
+    if (remaining && remaining.length > 0) {
+        await Promise.all(
+            remaining.map((row: any, index: number) =>
+                supabase
+                    .from(entryTable)
+                    .update({ position: index + 1 })
+                    .eq('id', row.id)
+            )
+        );
+    }
+}
+
+export async function addEntryToSlot(input: {
+    slotId: string;
+    slotType: 'base' | 'week';
+    studentId?: string;
+    guestName?: string;
+    guestOrigin?: string;
+}) {
+    const { supabase } = await getAccessContext();
+    await addEntryInternal(supabase, input.slotId, input.slotType, input.studentId, input.guestName, input.guestOrigin);
+    revalidateAttendanceViews();
+    return { success: true };
+}
+
+export async function removeEntryFromSlot(input: {
+    entryId: string;
+    slotType: 'base' | 'week';
+}) {
+    const { supabase } = await getAccessContext();
+    await removeEntryInternal(supabase, input.entryId, input.slotType);
+    revalidateAttendanceViews();
+    return { success: true };
+}
+
+export async function addPublicEntryToSlot(accessToken: string, input: {
+    slotId: string;
+    slotType: 'base' | 'week';
+    studentId?: string;
+    guestName?: string;
+    guestOrigin?: string;
+}) {
+    const admin = await assertPublicLink(accessToken);
+    await addEntryInternal(admin, input.slotId, input.slotType, input.studentId, input.guestName, input.guestOrigin);
+    return { success: true };
+}
+
+export async function removePublicEntryFromSlot(accessToken: string, input: {
+    entryId: string;
+    slotType: 'base' | 'week';
+}) {
+    const admin = await assertPublicLink(accessToken);
+    await removeEntryInternal(admin, input.entryId, input.slotType);
+    return { success: true };
+}
+
+// ── Attendance marking actions ──────────────────────────────────────
+
+async function markAttendanceInternal(
+    supabase: any,
+    entryId: string,
+    status: 'pending' | 'present' | 'absent',
+    markedBy?: string | null,
+) {
+    const { error } = await supabase
+        .from('schedule_week_entries')
+        .update({
+            status,
+            marked_by: status === 'pending' ? null : markedBy || null,
+            marked_at: status === 'pending' ? null : new Date().toISOString(),
+        })
+        .eq('id', entryId);
+
+    if (error) {
+        console.error('Error marking attendance:', error);
+        throw new Error('Nao foi possivel marcar a presenca');
+    }
+}
+
+export async function markAttendance(input: {
+    entryId: string;
+    status: 'pending' | 'present' | 'absent';
+}) {
+    const { supabase, profile } = await getAccessContext();
+    await markAttendanceInternal(supabase, input.entryId, input.status, profile.id);
+    revalidateAttendanceViews();
+    return { success: true };
+}
+
+export async function markPublicAttendance(input: {
+    entryId: string;
+    status: 'pending' | 'present' | 'absent';
+    token: string;
+}) {
+    const admin = await assertPublicLink(input.token);
+    await markAttendanceInternal(admin, input.entryId, input.status);
+    return { success: true };
+}
+
+async function markAllPresentInternal(
+    supabase: any,
+    weekSlotId: string,
+    markedBy?: string | null,
+) {
+    const { error } = await supabase
+        .from('schedule_week_entries')
+        .update({
+            status: 'present',
+            marked_by: markedBy || null,
+            marked_at: new Date().toISOString(),
+        })
+        .eq('week_slot_id', weekSlotId)
+        .neq('status', 'present');
+
+    if (error) {
+        console.error('Error marking all present:', error);
+        throw new Error('Nao foi possivel marcar todos como presentes');
+    }
+}
+
+export async function markAllPresent(input: { weekSlotId: string }) {
+    const { supabase, profile } = await getAccessContext();
+    await markAllPresentInternal(supabase, input.weekSlotId, profile.id);
+    revalidateAttendanceViews();
+    return { success: true };
+}
+
+export async function markAllPublicPresent(input: { weekSlotId: string; token: string }) {
+    const admin = await assertPublicLink(input.token);
+    await markAllPresentInternal(admin, input.weekSlotId);
+    return { success: true };
+}
