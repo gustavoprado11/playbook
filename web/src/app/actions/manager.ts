@@ -325,7 +325,7 @@ export async function createStudent(formData: FormData) {
     const start_date = formData.get('start_date') as string || new Date().toISOString().split('T')[0];
     const notes = formData.get('notes') as string || null;
 
-    const { error } = await supabase
+    const { data: newStudent, error } = await supabase
         .from('students')
         .insert({
             full_name,
@@ -336,10 +336,27 @@ export async function createStudent(formData: FormData) {
             referred_by_trainer_id: origin === 'referral' ? referred_by_trainer_id : null,
             start_date,
             notes,
-        });
+        })
+        .select('id')
+        .single();
 
     if (error) {
         return { error: error.message };
+    }
+
+    // Log student registration activity (fire-and-forget)
+    try {
+        const admin = createAdminClient();
+        await admin.from('trainer_activity_log').insert({
+            trainer_id,
+            activity_type: 'student_registered',
+            metadata: {
+                student_id: newStudent?.id || null,
+                student_name: full_name,
+            },
+        });
+    } catch {
+        // Silent failure
     }
 
     revalidatePath('/dashboard/manager/students');
@@ -488,6 +505,81 @@ export async function unarchiveStudent(studentId: string) {
 }
 
 // =====================================================
+// TRAINER: ARCHIVE OWN STUDENT
+// =====================================================
+
+export async function trainerArchiveStudent(studentId: string) {
+    const profile = await getProfile();
+    if (!profile || profile.role !== 'trainer') {
+        throw new Error('Não autorizado');
+    }
+
+    const trainerId = await getTrainerId();
+    if (!trainerId) {
+        throw new Error('Perfil de treinador não encontrado');
+    }
+
+    const supabase = await createClient();
+
+    // Verify student belongs to this trainer
+    const { data: student, error: fetchError } = await supabase
+        .from('students')
+        .select('id, trainer_id, full_name')
+        .eq('id', studentId)
+        .single();
+
+    if (fetchError || !student) {
+        throw new Error('Aluno não encontrado');
+    }
+
+    if (student.trainer_id !== trainerId) {
+        throw new Error('Você só pode arquivar alunos da sua carteira');
+    }
+
+    // Archive the student (no status change, no event logged)
+    const { error: archiveError } = await supabase
+        .from('students')
+        .update({ is_archived: true })
+        .eq('id', studentId);
+
+    if (archiveError) {
+        throw new Error('Erro ao arquivar aluno');
+    }
+
+    // Clean up schedule entries using admin client (bypasses RLS for entries in other trainers' slots)
+    const admin = createAdminClient();
+
+    await admin
+        .from('schedule_base_entries')
+        .delete()
+        .eq('student_id', studentId);
+
+    await admin
+        .from('schedule_week_entries')
+        .delete()
+        .eq('student_id', studentId);
+
+    // Log archive activity (fire-and-forget)
+    try {
+        await admin.from('trainer_activity_log').insert({
+            trainer_id: trainerId,
+            activity_type: 'student_archived',
+            metadata: {
+                student_id: studentId,
+                student_name: student.full_name,
+            },
+        });
+    } catch {
+        // Silent failure
+    }
+
+    revalidatePath('/dashboard/trainer/students');
+    revalidatePath('/dashboard/trainer/attendance');
+    revalidatePath('/dashboard/manager/attendance');
+    return { success: true };
+}
+
+// =====================================================
 // SNAPSHOT ACTIONS
 // =====================================================
 
@@ -568,4 +660,200 @@ export async function finalizeSnapshot(trainerId: string, referenceMonth: string
 
     revalidatePath('/dashboard/manager');
     return { success: true };
+}
+
+// =====================================================
+// TRAINER ACTIVITY DETAILS
+// =====================================================
+
+export type ActivityDetail = {
+    id: string;
+    occurredAt: string;
+    activityType?: string;
+    studentName?: string;
+    detail: string;
+};
+
+type ActivityType = 'login' | 'result_management' | 'student_status_update' | 'referral_registered' | 'student_registered' | 'schedule_update' | 'student_archived';
+
+const STATUS_LABELS: Record<string, string> = {
+    active: 'ativo',
+    cancelled: 'cancelado',
+    paused: 'pausado',
+};
+
+export async function getTrainerActivityDetails(input: {
+    trainerId: string;
+    activityType: ActivityType;
+    limit?: number;
+}): Promise<ActivityDetail[]> {
+    const profile = await getProfile();
+    if (!profile || profile.role !== 'manager') {
+        throw new Error('Não autorizado');
+    }
+
+    const supabase = await createClient();
+    const limit = input.limit || 10;
+
+    const { data: logs, error } = await supabase
+        .from('trainer_activity_log')
+        .select('id, occurred_at, metadata')
+        .eq('trainer_id', input.trainerId)
+        .eq('activity_type', input.activityType)
+        .order('occurred_at', { ascending: false })
+        .limit(limit);
+
+    if (error || !logs) {
+        return [];
+    }
+
+    // Collect student IDs to resolve names in a single query
+    const studentIds = new Set<string>();
+    for (const log of logs) {
+        const meta = log.metadata as Record<string, unknown> | null;
+        if (meta?.student_id && typeof meta.student_id === 'string') {
+            studentIds.add(meta.student_id);
+        }
+    }
+
+    const studentNames = new Map<string, string>();
+    if (studentIds.size > 0) {
+        const { data: students } = await supabase
+            .from('students')
+            .select('id, full_name')
+            .in('id', Array.from(studentIds));
+
+        if (students) {
+            for (const s of students) {
+                studentNames.set(s.id, s.full_name);
+            }
+        }
+    }
+
+    return logs.map((log) => {
+        const meta = log.metadata as Record<string, unknown> | null;
+        const studentId = (meta?.student_id as string) || undefined;
+        const studentName = studentId
+            ? studentNames.get(studentId) || (meta?.student_name as string) || 'Aluno removido'
+            : undefined;
+
+        let detail: string;
+        switch (input.activityType) {
+            case 'login':
+                detail = 'Login realizado';
+                break;
+            case 'referral_registered':
+                detail = `${studentName || 'Aluno'} registrado como indicação`;
+                break;
+            case 'student_status_update': {
+                const oldStatus = STATUS_LABELS[(meta?.old_status as string) || ''] || (meta?.old_status as string) || '?';
+                const newStatus = STATUS_LABELS[(meta?.new_status as string) || ''] || (meta?.new_status as string) || '?';
+                detail = `${studentName || 'Aluno'}: ${oldStatus} → ${newStatus}`;
+                break;
+            }
+            case 'result_management':
+                detail = `Avaliação registrada para ${studentName || 'aluno'}`;
+                break;
+            case 'student_registered':
+                detail = `${studentName || 'Aluno'} cadastrado`;
+                break;
+            case 'schedule_update': {
+                const action = meta?.action as string;
+                if (action === 'add_entry') {
+                    detail = studentName ? `${studentName} adicionado ao horário` : 'Aluno adicionado ao horário';
+                } else if (action === 'remove_entry') {
+                    detail = 'Aluno removido do horário';
+                } else {
+                    detail = 'Agenda atualizada';
+                }
+                break;
+            }
+            case 'student_archived':
+                detail = `${studentName || 'Aluno'} arquivado`;
+                break;
+            default:
+                detail = 'Atividade registrada';
+        }
+
+        return {
+            id: log.id,
+            occurredAt: log.occurred_at,
+            activityType: input.activityType,
+            studentName,
+            detail,
+        };
+    });
+}
+
+export async function getTrainerFullHistory(input: {
+    trainerId: string;
+    limit?: number;
+}): Promise<(ActivityDetail & { activityType: string })[]> {
+    const profile = await getProfile();
+    if (!profile || profile.role !== 'manager') {
+        throw new Error('Não autorizado');
+    }
+
+    const supabase = await createClient();
+    const limit = input.limit || 20;
+
+    const { data: logs, error } = await supabase
+        .from('trainer_activity_log')
+        .select('id, occurred_at, activity_type, metadata')
+        .eq('trainer_id', input.trainerId)
+        .order('occurred_at', { ascending: false })
+        .limit(limit);
+
+    if (error || !logs) return [];
+
+    const studentIds = new Set<string>();
+    for (const log of logs) {
+        const meta = log.metadata as Record<string, unknown> | null;
+        if (meta?.student_id && typeof meta.student_id === 'string') {
+            studentIds.add(meta.student_id);
+        }
+    }
+
+    const studentNames = new Map<string, string>();
+    if (studentIds.size > 0) {
+        const { data: students } = await supabase
+            .from('students')
+            .select('id, full_name')
+            .in('id', Array.from(studentIds));
+        if (students) {
+            for (const s of students) studentNames.set(s.id, s.full_name);
+        }
+    }
+
+    return logs.map((log) => {
+        const meta = log.metadata as Record<string, unknown> | null;
+        const studentId = (meta?.student_id as string) || undefined;
+        const studentName = studentId
+            ? studentNames.get(studentId) || (meta?.student_name as string) || 'Aluno removido'
+            : undefined;
+
+        let detail: string;
+        switch (log.activity_type) {
+            case 'login': detail = 'Login realizado'; break;
+            case 'referral_registered': detail = `${studentName || 'Aluno'} registrado como indicação`; break;
+            case 'student_status_update': {
+                const o = STATUS_LABELS[(meta?.old_status as string) || ''] || (meta?.old_status as string) || '?';
+                const n = STATUS_LABELS[(meta?.new_status as string) || ''] || (meta?.new_status as string) || '?';
+                detail = `${studentName || 'Aluno'}: ${o} → ${n}`; break;
+            }
+            case 'result_management': detail = `Avaliação registrada para ${studentName || 'aluno'}`; break;
+            case 'student_registered': detail = `${studentName || 'Aluno'} cadastrado`; break;
+            case 'schedule_update': {
+                const action = meta?.action as string;
+                detail = action === 'add_entry'
+                    ? (studentName ? `${studentName} adicionado ao horário` : 'Aluno adicionado ao horário')
+                    : action === 'remove_entry' ? 'Aluno removido do horário' : 'Agenda atualizada';
+                break;
+            }
+            case 'student_archived': detail = `${studentName || 'Aluno'} arquivado`; break;
+            default: detail = 'Atividade registrada';
+        }
+
+        return { id: log.id, occurredAt: log.occurred_at, activityType: log.activity_type, studentName, detail };
+    });
 }

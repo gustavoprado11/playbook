@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { NewResultDialog } from '@/app/dashboard/trainer/students/new-result-dialog';
 import { processAssessmentHistory, getManagementStatus } from '@/lib/assessment-logic';
+import { ArchiveStudentButton } from './components/archive-student-button';
 import { StudentHeader } from './components/student-header';
 import { ProtocolTimeline } from './components/protocol-timeline';
 
@@ -52,7 +53,10 @@ export default async function StudentDetailsPage({ params }: { params: Promise<{
                         </p>
                     </div>
                 </div>
-                <NewResultDialog studentId={student.id} protocols={protocols} />
+                <div className="flex items-center gap-2">
+                    <ArchiveStudentButton studentId={student.id} studentName={student.full_name} />
+                    <NewResultDialog studentId={student.id} protocols={protocols} />
+                </div>
             </div>
 
             {/* Header Summary */}

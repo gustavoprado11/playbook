@@ -448,7 +448,10 @@ export type TrainerActivityType =
   | 'login'
   | 'result_management'
   | 'student_status_update'
-  | 'referral_registered';
+  | 'referral_registered'
+  | 'student_registered'
+  | 'schedule_update'
+  | 'student_archived';
 
 export interface TrainerActivitySummary {
   trainer_id: string;
@@ -457,4 +460,7 @@ export interface TrainerActivitySummary {
   last_result_management: string | null;
   last_student_status_update: string | null;
   last_referral_registered: string | null;
+  last_student_registered: string | null;
+  last_schedule_update: string | null;
+  last_student_archived: string | null;
 }

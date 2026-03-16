@@ -1,9 +1,10 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
     Table,
     TableBody,
@@ -13,9 +14,20 @@ import {
     TableRow
 } from '@/components/ui/table';
 import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
+    DropdownMenuSeparator,
     DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
@@ -29,9 +41,10 @@ import {
     CheckCircle2,
     Calendar,
     ArrowUpDown,
-    Filter
+    Archive,
 } from 'lucide-react';
 import Link from 'next/link';
+import { trainerArchiveStudent } from '@/app/actions/manager';
 import type { Student } from '@/types/database';
 import { format, addDays, differenceInDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -45,10 +58,13 @@ type FilterStatus = 'all' | 'late' | 'on_time' | 'due_soon';
 type SortField = 'name' | 'last_assessment' | 'status';
 
 export function StudentTable({ students, assessmentMap }: StudentTableProps) {
+    const router = useRouter();
     const [search, setSearch] = useState('');
     const [filter, setFilter] = useState<FilterStatus>('all');
-    const [sort, setSort] = useState<SortField>('status'); // Default sort by status (priority)
+    const [sort, setSort] = useState<SortField>('status');
     const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+    const [archiveTarget, setArchiveTarget] = useState<{ id: string; name: string } | null>(null);
+    const [isPending, startTransition] = useTransition();
 
     const today = new Date();
     const windowDays = 60;
@@ -136,6 +152,20 @@ export function StudentTable({ students, assessmentMap }: StudentTableProps) {
             setSortDirection('asc');
         }
     };
+
+    function handleArchive() {
+        if (!archiveTarget) return;
+        startTransition(async () => {
+            try {
+                await trainerArchiveStudent(archiveTarget.id);
+                toast.success(`${archiveTarget.name} foi arquivado`);
+                setArchiveTarget(null);
+                router.refresh();
+            } catch (error) {
+                toast.error(error instanceof Error ? error.message : 'Erro ao arquivar aluno');
+            }
+        });
+    }
 
     return (
         <div className="space-y-6">
@@ -308,6 +338,14 @@ export function StudentTable({ students, assessmentMap }: StudentTableProps) {
                                                         Nova Avaliação
                                                     </DropdownMenuItem>
                                                 </Link>
+                                                <DropdownMenuSeparator />
+                                                <DropdownMenuItem
+                                                    onClick={() => setArchiveTarget({ id: student.id, name: student.full_name })}
+                                                    className="text-red-600 focus:text-red-600"
+                                                >
+                                                    <Archive className="mr-2 h-4 w-4" />
+                                                    Arquivar
+                                                </DropdownMenuItem>
                                             </DropdownMenuContent>
                                         </DropdownMenu>
                                     </TableCell>
@@ -317,6 +355,28 @@ export function StudentTable({ students, assessmentMap }: StudentTableProps) {
                     </TableBody>
                 </Table>
             </div>
+
+            <AlertDialog open={!!archiveTarget} onOpenChange={(v) => { if (!v) setArchiveTarget(null); }}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Arquivar aluno</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            O aluno será removido da sua lista e de todos os horários da agenda.
+                            Esta ação pode ser desfeita pelo gestor.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel disabled={isPending}>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction
+                            onClick={handleArchive}
+                            disabled={isPending}
+                            className="bg-red-600 hover:bg-red-700"
+                        >
+                            {isPending ? 'Arquivando...' : 'Arquivar'}
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </div>
     );
 }

@@ -619,8 +619,28 @@ export async function addEntryToSlot(input: {
     guestName?: string;
     guestOrigin?: string;
 }) {
-    const { supabase } = await getAccessContext();
+    const { supabase, profile, trainerId } = await getAccessContext();
     await addEntryInternal(supabase, input.slotId, input.slotType, input.studentId, input.guestName, input.guestOrigin);
+
+    // Log schedule activity for trainers (fire-and-forget)
+    if (profile.role === 'trainer' && trainerId) {
+        try {
+            const admin = createAdminClient();
+            await admin.from('trainer_activity_log').insert({
+                trainer_id: trainerId,
+                activity_type: 'schedule_update',
+                metadata: {
+                    action: 'add_entry',
+                    slot_type: input.slotType,
+                    student_id: input.studentId || null,
+                    guest_name: input.guestName || null,
+                },
+            });
+        } catch {
+            // Silent failure
+        }
+    }
+
     revalidateAttendanceViews();
     return { success: true };
 }
@@ -629,8 +649,27 @@ export async function removeEntryFromSlot(input: {
     entryId: string;
     slotType: 'base' | 'week';
 }) {
-    const { supabase } = await getAccessContext();
+    const { supabase, profile, trainerId } = await getAccessContext();
     await removeEntryInternal(supabase, input.entryId, input.slotType);
+
+    // Log schedule activity for trainers (fire-and-forget)
+    if (profile.role === 'trainer' && trainerId) {
+        try {
+            const admin = createAdminClient();
+            await admin.from('trainer_activity_log').insert({
+                trainer_id: trainerId,
+                activity_type: 'schedule_update',
+                metadata: {
+                    action: 'remove_entry',
+                    slot_type: input.slotType,
+                    entry_id: input.entryId,
+                },
+            });
+        } catch {
+            // Silent failure
+        }
+    }
+
     revalidateAttendanceViews();
     return { success: true };
 }

@@ -88,22 +88,6 @@ export async function GET(request: NextRequest) {
         .eq('id', user.id)
         .single();
 
-    // Log trainer login activity (fire-and-forget)
-    if (profile?.role === 'trainer') {
-        const { data: trainer } = await supabase
-            .from('trainers')
-            .select('id')
-            .eq('profile_id', user.id)
-            .single();
-
-        if (trainer) {
-            void supabase.from('trainer_activity_log').insert({
-                trainer_id: trainer.id,
-                activity_type: 'login',
-            });
-        }
-    }
-
     // Redirect based on role
     if (profile?.role === 'manager') {
         redirectTo = new URL('/dashboard/manager', requestUrl.origin);

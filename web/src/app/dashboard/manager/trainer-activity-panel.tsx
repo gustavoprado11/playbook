@@ -15,34 +15,13 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table';
-import { cn, formatRelativeDate, getActivityUrgency } from '@/lib/utils';
 import { Activity } from 'lucide-react';
 import type { TrainerActivitySummary } from '@/types/database';
+import { ActivityDetailPopover } from './activity-detail-popover';
+import { TrainerHistoryPopover } from './trainer-history-popover';
 
 interface TrainerActivityPanelProps {
     data: TrainerActivitySummary[];
-}
-
-const urgencyStyles = {
-    green: 'bg-emerald-100 text-emerald-700',
-    yellow: 'bg-amber-100 text-amber-700',
-    red: 'bg-red-100 text-red-700',
-} as const;
-
-function ActivityBadge({ date }: { date: string | null }) {
-    const urgency = getActivityUrgency(date);
-    const text = formatRelativeDate(date);
-
-    return (
-        <span
-            className={cn(
-                'inline-flex items-center rounded-full px-2 py-1 text-xs font-medium',
-                urgencyStyles[urgency]
-            )}
-        >
-            {text}
-        </span>
-    );
 }
 
 export function TrainerActivityPanel({ data }: TrainerActivityPanelProps) {
@@ -72,7 +51,7 @@ export function TrainerActivityPanel({ data }: TrainerActivityPanelProps) {
                     Atividade dos Treinadores
                 </CardTitle>
                 <CardDescription>
-                    Última ação registrada por tipo
+                    Clique em uma célula para ver o histórico detalhado
                 </CardDescription>
             </CardHeader>
             <CardContent>
@@ -82,9 +61,11 @@ export function TrainerActivityPanel({ data }: TrainerActivityPanelProps) {
                             <TableRow>
                                 <TableHead>Treinador</TableHead>
                                 <TableHead className="text-center">Último Login</TableHead>
+                                <TableHead className="text-center">Último Cadastro</TableHead>
                                 <TableHead className="text-center">Última Gestão</TableHead>
-                                <TableHead className="text-center">Última Atualização de Status</TableHead>
+                                <TableHead className="text-center">Última Atualização</TableHead>
                                 <TableHead className="text-center">Última Indicação</TableHead>
+                                <TableHead className="w-[50px]"></TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -94,16 +75,50 @@ export function TrainerActivityPanel({ data }: TrainerActivityPanelProps) {
                                         {row.trainer_name}
                                     </TableCell>
                                     <TableCell className="text-center">
-                                        <ActivityBadge date={row.last_login} />
+                                        <ActivityDetailPopover
+                                            trainerId={row.trainer_id}
+                                            trainerName={row.trainer_name}
+                                            activityType="login"
+                                            date={row.last_login}
+                                        />
                                     </TableCell>
                                     <TableCell className="text-center">
-                                        <ActivityBadge date={row.last_result_management} />
+                                        <ActivityDetailPopover
+                                            trainerId={row.trainer_id}
+                                            trainerName={row.trainer_name}
+                                            activityType="student_registered"
+                                            date={row.last_student_registered}
+                                        />
                                     </TableCell>
                                     <TableCell className="text-center">
-                                        <ActivityBadge date={row.last_student_status_update} />
+                                        <ActivityDetailPopover
+                                            trainerId={row.trainer_id}
+                                            trainerName={row.trainer_name}
+                                            activityType="result_management"
+                                            date={row.last_result_management}
+                                        />
                                     </TableCell>
                                     <TableCell className="text-center">
-                                        <ActivityBadge date={row.last_referral_registered} />
+                                        <ActivityDetailPopover
+                                            trainerId={row.trainer_id}
+                                            trainerName={row.trainer_name}
+                                            activityType="student_status_update"
+                                            date={row.last_student_status_update}
+                                        />
+                                    </TableCell>
+                                    <TableCell className="text-center">
+                                        <ActivityDetailPopover
+                                            trainerId={row.trainer_id}
+                                            trainerName={row.trainer_name}
+                                            activityType="referral_registered"
+                                            date={row.last_referral_registered}
+                                        />
+                                    </TableCell>
+                                    <TableCell>
+                                        <TrainerHistoryPopover
+                                            trainerId={row.trainer_id}
+                                            trainerName={row.trainer_name}
+                                        />
                                     </TableCell>
                                 </TableRow>
                             ))}
