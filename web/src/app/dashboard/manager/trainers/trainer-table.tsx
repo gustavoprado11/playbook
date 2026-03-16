@@ -31,10 +31,11 @@ import {
     AlertDialogTitle
 } from '@/components/ui/alert-dialog';
 import { cn, formatDate } from '@/lib/utils';
-import { Search, MoreVertical, User, Archive, RefreshCcw, Pencil, Power, UserX, UserCheck } from 'lucide-react';
+import { Search, MoreVertical, User, Archive, RefreshCcw, Pencil, Power, UserX, UserCheck, KeyRound } from 'lucide-react';
 import type { Trainer, Profile } from '@/types/database';
 import { toggleTrainerStatus } from '@/app/actions/manager';
 import { EditTrainerDialog } from './edit-trainer-dialog';
+import { ResetPasswordDialog } from './reset-password-dialog';
 
 interface ExtendedTrainer extends Trainer {
     profile?: Profile;
@@ -58,6 +59,7 @@ export function ManagerTrainerTable({ trainers }: ManagerTrainerTableProps) {
     // Action State
     const [trainerToEdit, setTrainerToEdit] = useState<ExtendedTrainer | null>(null);
     const [trainerToToggle, setTrainerToToggle] = useState<ExtendedTrainer | null>(null);
+    const [trainerToResetPassword, setTrainerToResetPassword] = useState<ExtendedTrainer | null>(null);
 
     const filteredTrainers = useMemo(() => {
         return trainers.filter(t => {
@@ -186,6 +188,10 @@ export function ManagerTrainerTable({ trainers }: ManagerTrainerTableProps) {
                                                     <Pencil className="mr-2 h-4 w-4" />
                                                     Editar Dados
                                                 </DropdownMenuItem>
+                                                <DropdownMenuItem onClick={() => setTrainerToResetPassword(trainer)}>
+                                                    <KeyRound className="mr-2 h-4 w-4" />
+                                                    Redefinir Senha
+                                                </DropdownMenuItem>
 
                                                 <DropdownMenuSeparator />
 
@@ -242,6 +248,15 @@ export function ManagerTrainerTable({ trainers }: ManagerTrainerTableProps) {
                     trainer={trainerToEdit}
                     open={!!trainerToEdit}
                     onOpenChange={(open) => !open && setTrainerToEdit(null)}
+                />
+            )}
+
+            {/* Reset Password Dialog */}
+            {trainerToResetPassword && (
+                <ResetPasswordDialog
+                    trainer={trainerToResetPassword}
+                    open={!!trainerToResetPassword}
+                    onOpenChange={(open) => !open && setTrainerToResetPassword(null)}
                 />
             )}
         </div>

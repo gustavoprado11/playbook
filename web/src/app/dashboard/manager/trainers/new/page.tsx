@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { createTrainer } from '@/app/actions/manager';
 import { Button } from '@/components/ui/button';
@@ -11,12 +10,27 @@ import { ArrowLeft } from 'lucide-react';
 
 export default function NewTrainerPage() {
     const [error, setError] = useState<string | null>(null);
+    const [passwordError, setPasswordError] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(false);
-    const router = useRouter();
 
     async function handleSubmit(formData: FormData) {
-        setIsLoading(true);
+        setPasswordError(null);
         setError(null);
+
+        const password = formData.get('password') as string;
+        const confirmPassword = formData.get('confirm_password') as string;
+
+        if (password.length < 6) {
+            setPasswordError('A senha deve ter no mínimo 6 caracteres');
+            return;
+        }
+
+        if (password !== confirmPassword) {
+            setPasswordError('As senhas não coincidem');
+            return;
+        }
+
+        setIsLoading(true);
 
         const result = await createTrainer(formData);
 
@@ -44,7 +58,7 @@ export default function NewTrainerPage() {
                 <CardHeader>
                     <CardTitle>Informações do Treinador</CardTitle>
                     <CardDescription>
-                        O treinador receberá um e-mail para definir sua senha
+                        Defina os dados de acesso e informações do treinador
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -62,6 +76,26 @@ export default function NewTrainerPage() {
                             label="E-mail"
                             placeholder="joao@email.com"
                             required
+                        />
+
+                        <Input
+                            name="password"
+                            type="password"
+                            label="Senha inicial"
+                            placeholder="Mínimo 6 caracteres"
+                            required
+                            minLength={6}
+                            error={passwordError && passwordError.includes('mínimo') ? passwordError : undefined}
+                        />
+
+                        <Input
+                            name="confirm_password"
+                            type="password"
+                            label="Confirmar senha"
+                            placeholder="Repita a senha"
+                            required
+                            minLength={6}
+                            error={passwordError && passwordError.includes('coincidem') ? passwordError : undefined}
                         />
 
                         <Input

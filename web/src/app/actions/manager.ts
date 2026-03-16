@@ -20,6 +20,8 @@ export async function createTrainer(formData: FormData) {
 
     const email = normalizeEmail(formData.get('email') as string);
     const full_name = formData.get('full_name') as string;
+    const password = formData.get('password') as string;
+    const confirm_password = formData.get('confirm_password') as string;
     const start_date = formData.get('start_date') as string || new Date().toISOString().split('T')[0];
     const notes = formData.get('notes') as string;
 
@@ -30,6 +32,14 @@ export async function createTrainer(formData: FormData) {
 
     if (!isValidEmail(email)) {
         return { error: 'Digite um e-mail valido, por exemplo nome@dominio.com' };
+    }
+
+    if (!password || password.length < 6) {
+        return { error: 'A senha deve ter no mínimo 6 caracteres' };
+    }
+
+    if (password !== confirm_password) {
+        return { error: 'As senhas não coincidem' };
     }
 
     // Check if SUPABASE_SERVICE_ROLE_KEY is configured
@@ -66,13 +76,10 @@ export async function createTrainer(formData: FormData) {
             }
         } else {
             // Create user with admin API
-            // Using createUser gives us control over the process
-            const temporaryPassword = crypto.randomUUID();
-
             const { data: userData, error: createError } = await adminClient.auth.admin.createUser({
                 email,
-                password: temporaryPassword,
-                email_confirm: true, // Auto-confirm email since we're sending recovery link
+                password,
+                email_confirm: true,
                 user_metadata: {
                     full_name,
                     role: 'trainer',
@@ -223,6 +230,47 @@ export async function updateTrainer(trainerId: string, data: { full_name?: strin
     }
 
     revalidatePath('/dashboard/manager/trainers');
+    return { success: true };
+}
+
+export async function resetTrainerPassword(trainerId: string, password: string, confirmPassword: string) {
+    const profile = await getProfile();
+    if (!profile || profile.role !== 'manager') {
+        return { error: 'Não autorizado' };
+    }
+
+    if (!password || password.length < 6) {
+        return { error: 'A senha deve ter no mínimo 6 caracteres' };
+    }
+
+    if (password !== confirmPassword) {
+        return { error: 'As senhas não coincidem' };
+    }
+
+    const supabase = await createClient();
+    const adminClient = createAdminClient();
+
+    // Get trainer to find profile_id (which is the auth user ID)
+    const { data: trainer, error: fetchError } = await supabase
+        .from('trainers')
+        .select('profile_id')
+        .eq('id', trainerId)
+        .single();
+
+    if (fetchError || !trainer) {
+        return { error: 'Treinador não encontrado' };
+    }
+
+    const { error: updateError } = await adminClient.auth.admin.updateUserById(
+        trainer.profile_id,
+        { password }
+    );
+
+    if (updateError) {
+        console.error('Error resetting password:', updateError);
+        return { error: 'Erro ao redefinir senha. Tente novamente.' };
+    }
+
     return { success: true };
 }
 

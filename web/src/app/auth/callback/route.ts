@@ -38,7 +38,7 @@ export async function GET(request: NextRequest) {
         }
     );
 
-    // Handle code exchange (PKCE flow — from magic link or OAuth)
+    // Handle code exchange (PKCE flow — from OAuth or password recovery)
     if (code) {
         const { error } = await supabase.auth.exchangeCodeForSession(code);
 
@@ -49,17 +49,26 @@ export async function GET(request: NextRequest) {
         }
     }
 
-    // Handle token hash verification (legacy magic link flow)
+    // Handle token hash verification (recovery flow)
     if (token_hash && type) {
         const { error } = await supabase.auth.verifyOtp({
             token_hash,
-            type: type as 'magiclink' | 'email',
+            type: type as 'recovery' | 'email',
         });
 
         if (error) {
             console.error('Error verifying OTP:', error);
             response = NextResponse.redirect(new URL('/login?error=auth_failed', requestUrl.origin));
             return response;
+        }
+
+        // If this is a password recovery, redirect to reset-password page
+        if (type === 'recovery') {
+            const finalResponse = NextResponse.redirect(new URL('/auth/reset-password', requestUrl.origin));
+            cookiesToApply.forEach(({ name, value, options }) => {
+                finalResponse.cookies.set(name, value, options);
+            });
+            return finalResponse;
         }
     }
 

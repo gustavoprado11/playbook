@@ -29,34 +29,6 @@ export async function signIn(formData: FormData) {
     redirect('/dashboard');
 }
 
-export async function signInWithMagicLink(formData: FormData) {
-    const supabase = await createClient();
-
-    const email = normalizeEmail(formData.get('email') as string);
-
-    if (!email) {
-        return { error: 'E-mail é obrigatório' };
-    }
-
-    if (!isValidEmail(email)) {
-        return { error: 'Digite um e-mail valido, por exemplo nome@dominio.com' };
-    }
-
-    const { error } = await supabase.auth.signInWithOtp({
-        email,
-        options: {
-            emailRedirectTo: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/auth/callback`,
-        },
-    });
-
-    if (error) {
-        console.error('Magic link error:', error);
-        return { error: 'Não foi possível enviar o link. Verifique o e-mail e tente novamente.' };
-    }
-
-    return { success: true, message: 'Link de acesso enviado! Verifique seu e-mail.' };
-}
-
 export async function signOut() {
     const supabase = await createClient();
     await supabase.auth.signOut();
