@@ -580,6 +580,231 @@ export async function trainerArchiveStudent(studentId: string) {
 }
 
 // =====================================================
+// LIVE KPI CALCULATION
+// =====================================================
+
+export type LiveTrainerKPI = {
+    trainerId: string;
+    trainerName: string;
+    // Retention
+    studentsStart: number;
+    studentsEnd: number;
+    cancellations: number;
+    retentionRate: number;
+    retentionTarget: number;
+    retentionEligible: boolean;
+    retentionAchieved: boolean;
+    // Referrals
+    referralsCount: number;
+    referralsTarget: number;
+    referralsAchieved: boolean;
+    // Management
+    portfolioSize: number;
+    managedCount: number;
+    managementRate: number;
+    managementTarget: number;
+    managementAchieved: boolean;
+    // Reward
+    rewardAmount: number;
+};
+
+export type LiveDashboardData = {
+    source: 'live' | 'snapshot';
+    isFinalized: boolean;
+    trainers: LiveTrainerKPI[];
+    avgRetention: number;
+    totalReward: number;
+    hasActiveRule: boolean;
+};
+
+export async function calculateLiveKPIs(referenceMonth: string): Promise<LiveDashboardData> {
+    const profile = await getProfile();
+    if (!profile || profile.role !== 'manager') {
+        throw new Error('Não autorizado');
+    }
+
+    const adminClient = createAdminClient();
+
+    // Check if finalized snapshots exist for this month
+    const { data: finalizedSnapshots } = await adminClient
+        .from('performance_snapshots')
+        .select('*, trainer:trainers(*, profile:profiles(*))')
+        .eq('reference_month', referenceMonth)
+        .eq('is_finalized', true);
+
+    if (finalizedSnapshots && finalizedSnapshots.length > 0) {
+        // Return snapshot data
+        const trainers: LiveTrainerKPI[] = finalizedSnapshots.map((s) => {
+            const trainer = s.trainer as { profile: { full_name: string } };
+            return {
+                trainerId: s.trainer_id,
+                trainerName: trainer?.profile?.full_name || 'N/A',
+                studentsStart: s.students_start,
+                studentsEnd: s.students_end,
+                cancellations: s.cancellations,
+                retentionRate: Number(s.retention_rate),
+                retentionTarget: Number(s.retention_target),
+                retentionEligible: s.retention_eligible,
+                retentionAchieved: s.retention_achieved,
+                referralsCount: s.referrals_count,
+                referralsTarget: s.referrals_target,
+                referralsAchieved: s.referrals_achieved,
+                portfolioSize: s.portfolio_size,
+                managedCount: s.managed_count,
+                managementRate: Number(s.management_rate),
+                managementTarget: Number(s.management_target),
+                managementAchieved: s.management_achieved,
+                rewardAmount: Number(s.reward_amount),
+            };
+        });
+
+        const eligible = trainers.filter((t) => t.retentionEligible);
+        const avgRetention = eligible.length > 0
+            ? eligible.reduce((sum, t) => sum + t.retentionRate, 0) / eligible.length
+            : 0;
+        const totalReward = trainers.reduce((sum, t) => sum + t.rewardAmount, 0);
+
+        return {
+            source: 'snapshot',
+            isFinalized: true,
+            trainers,
+            avgRetention,
+            totalReward,
+            hasActiveRule: true,
+        };
+    }
+
+    // Calculate live KPIs via RPC
+    const { data: activeTrainers } = await adminClient
+        .from('trainers')
+        .select('id, profile:profiles(full_name)')
+        .eq('is_active', true);
+
+    if (!activeTrainers || activeTrainers.length === 0) {
+        return {
+            source: 'live',
+            isFinalized: false,
+            trainers: [],
+            avgRetention: 0,
+            totalReward: 0,
+            hasActiveRule: false,
+        };
+    }
+
+    // Check if active game rule exists
+    const { data: ruleData } = await adminClient.rpc('get_active_game_rule');
+    const hasActiveRule = !!ruleData;
+
+    // Calculate KPIs for each trainer in parallel
+    const trainerKPIs = await Promise.all(
+        activeTrainers.map(async (trainer) => {
+            const profileData = trainer.profile as unknown as { full_name: string } | { full_name: string }[] | null;
+            const trainerName = Array.isArray(profileData)
+                ? profileData[0]?.full_name || 'N/A'
+                : profileData?.full_name || 'N/A';
+
+            // Call all three KPI functions in parallel
+            const [retentionResult, referralsResult, managementResult] = await Promise.all([
+                adminClient.rpc('calculate_retention', {
+                    p_trainer_id: trainer.id,
+                    p_reference_month: referenceMonth,
+                }),
+                adminClient.rpc('calculate_referrals', {
+                    p_trainer_id: trainer.id,
+                    p_reference_month: referenceMonth,
+                }),
+                adminClient.rpc('calculate_management', {
+                    p_trainer_id: trainer.id,
+                    p_reference_month: referenceMonth,
+                }),
+            ]);
+
+            const retention = retentionResult.data?.[0] || {
+                students_start: 0,
+                students_end: 0,
+                cancellations: 0,
+                retention_rate: 0,
+                retention_eligible: false,
+            };
+            const referrals = referralsResult.data ?? 0;
+            const management = managementResult.data?.[0] || {
+                portfolio_size: 0,
+                managed_count: 0,
+                management_rate: 0,
+            };
+
+            // Get targets from rule config
+            let retentionTarget = 90;
+            let referralsTarget = 1;
+            let managementTarget = 75;
+            let rewardAmount = 0;
+
+            if (ruleData) {
+                const config = ruleData.kpi_config;
+                retentionTarget = config?.retention?.target ?? 90;
+                referralsTarget = config?.referrals?.target ?? 1;
+                managementTarget = config?.management?.target ?? 75;
+
+                const retentionAchieved = retention.retention_eligible &&
+                    Number(retention.retention_rate) >= retentionTarget;
+                const referralsAchieved = Number(referrals) >= referralsTarget;
+                const managementAchieved = Number(management.management_rate) >= managementTarget;
+
+                // Calculate reward via RPC
+                const { data: reward } = await adminClient.rpc('calculate_reward', {
+                    p_retention_achieved: retentionAchieved,
+                    p_referrals_achieved: referralsAchieved,
+                    p_management_achieved: managementAchieved,
+                    p_game_rule_id: ruleData.id,
+                });
+                rewardAmount = Number(reward) || 0;
+            }
+
+            const retentionAchieved = retention.retention_eligible &&
+                Number(retention.retention_rate) >= retentionTarget;
+            const referralsAchieved = Number(referrals) >= referralsTarget;
+            const managementAchieved = Number(management.management_rate) >= managementTarget;
+
+            return {
+                trainerId: trainer.id,
+                trainerName,
+                studentsStart: Number(retention.students_start),
+                studentsEnd: Number(retention.students_end),
+                cancellations: Number(retention.cancellations),
+                retentionRate: Number(retention.retention_rate),
+                retentionTarget,
+                retentionEligible: retention.retention_eligible,
+                retentionAchieved,
+                referralsCount: Number(referrals),
+                referralsTarget,
+                referralsAchieved,
+                portfolioSize: Number(management.portfolio_size),
+                managedCount: Number(management.managed_count),
+                managementRate: Number(management.management_rate),
+                managementTarget,
+                managementAchieved,
+                rewardAmount,
+            };
+        })
+    );
+
+    const eligible = trainerKPIs.filter((t) => t.retentionEligible);
+    const avgRetention = eligible.length > 0
+        ? eligible.reduce((sum, t) => sum + t.retentionRate, 0) / eligible.length
+        : 0;
+    const totalReward = trainerKPIs.reduce((sum, t) => sum + t.rewardAmount, 0);
+
+    return {
+        source: 'live',
+        isFinalized: false,
+        trainers: trainerKPIs,
+        avgRetention,
+        totalReward,
+        hasActiveRule,
+    };
+}
+
+// =====================================================
 // SNAPSHOT ACTIONS
 // =====================================================
 
@@ -856,4 +1081,192 @@ export async function getTrainerFullHistory(input: {
 
         return { id: log.id, occurredAt: log.occurred_at, activityType: log.activity_type, studentName, detail };
     });
+}
+
+// =====================================================
+// KPI DETAIL DRILL-DOWN
+// =====================================================
+
+export type RetentionDetail = {
+    type: 'retention';
+    studentsStart: number;
+    studentsEnd: number;
+    cancellations: number;
+    retentionRate: number;
+    isEligible: boolean;
+    cancelledStudents: { id: string; name: string; endDate: string }[];
+    newStudents: { id: string; name: string; startDate: string }[];
+};
+
+export type ReferralsDetail = {
+    type: 'referrals';
+    count: number;
+    referrals: {
+        id: string;
+        studentName: string;
+        referredAt: string;
+        isValidated: boolean;
+        validatedAt?: string;
+    }[];
+};
+
+export type ManagementDetail = {
+    type: 'management';
+    totalActive: number;
+    managedCount: number;
+    managementRate: number;
+    students: {
+        id: string;
+        name: string;
+        lastAssessmentDate?: string;
+        status: 'on_track' | 'warning' | 'late' | 'never';
+        daysAgo?: number;
+    }[];
+};
+
+export type KPIDetail = RetentionDetail | ReferralsDetail | ManagementDetail;
+
+export async function getKPIDetails(input: {
+    trainerId: string;
+    kpiType: 'retention' | 'referrals' | 'management';
+    referenceMonth: string;
+}): Promise<KPIDetail> {
+    const profile = await getProfile();
+    if (!profile || profile.role !== 'manager') {
+        throw new Error('Não autorizado');
+    }
+
+    const admin = createAdminClient();
+    const monthStart = input.referenceMonth; // already yyyy-MM-dd (first day)
+    const monthDate = new Date(monthStart + 'T12:00:00');
+    const nextMonth = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 1);
+    const monthEnd = new Date(nextMonth.getTime() - 86400000).toISOString().slice(0, 10);
+
+    if (input.kpiType === 'retention') {
+        // Get retention numbers via RPC
+        const { data: retData } = await admin.rpc('calculate_retention', {
+            p_trainer_id: input.trainerId,
+            p_reference_month: input.referenceMonth,
+        });
+        const ret = retData?.[0] || { students_start: 0, students_end: 0, cancellations: 0, retention_rate: 0, retention_eligible: false };
+
+        // Cancelled students in the month
+        const { data: cancelled } = await admin
+            .from('students')
+            .select('id, full_name, end_date')
+            .eq('trainer_id', input.trainerId)
+            .eq('status', 'cancelled')
+            .eq('is_archived', false)
+            .gte('end_date', monthStart)
+            .lte('end_date', monthEnd)
+            .order('end_date');
+
+        // New students in the month
+        const { data: newStudents } = await admin
+            .from('students')
+            .select('id, full_name, start_date')
+            .eq('trainer_id', input.trainerId)
+            .eq('is_archived', false)
+            .gte('start_date', monthStart)
+            .lte('start_date', monthEnd)
+            .order('start_date');
+
+        return {
+            type: 'retention',
+            studentsStart: Number(ret.students_start),
+            studentsEnd: Number(ret.students_end),
+            cancellations: Number(ret.cancellations),
+            retentionRate: Number(ret.retention_rate),
+            isEligible: ret.retention_eligible,
+            cancelledStudents: (cancelled || []).map((s) => ({ id: s.id, name: s.full_name, endDate: s.end_date! })),
+            newStudents: (newStudents || []).map((s) => ({ id: s.id, name: s.full_name, startDate: s.start_date })),
+        };
+    }
+
+    if (input.kpiType === 'referrals') {
+        const { data: referrals } = await admin
+            .from('students')
+            .select('id, full_name, start_date, referral_validated_at')
+            .eq('referred_by_trainer_id', input.trainerId)
+            .eq('origin', 'referral')
+            .eq('is_archived', false)
+            .gte('start_date', monthStart)
+            .lte('start_date', monthEnd)
+            .order('start_date');
+
+        const list = (referrals || []).map((s) => ({
+            id: s.id,
+            studentName: s.full_name,
+            referredAt: s.start_date,
+            isValidated: !!s.referral_validated_at,
+            validatedAt: s.referral_validated_at || undefined,
+        }));
+
+        return {
+            type: 'referrals',
+            count: list.filter((r) => r.isValidated).length,
+            referrals: list,
+        };
+    }
+
+    // Management
+    const { data: mgmtData } = await admin.rpc('calculate_management', {
+        p_trainer_id: input.trainerId,
+        p_reference_month: input.referenceMonth,
+    });
+    const mgmt = mgmtData?.[0] || { portfolio_size: 0, managed_count: 0, management_rate: 0 };
+
+    // Get all active non-archived students for this trainer
+    const { data: activeStudents } = await admin
+        .from('students')
+        .select('id, full_name')
+        .eq('trainer_id', input.trainerId)
+        .eq('status', 'active')
+        .eq('is_archived', false)
+        .order('full_name');
+
+    // Get latest assessment per student
+    const studentIds = (activeStudents || []).map((s) => s.id);
+    let assessmentMap = new Map<string, string>();
+
+    if (studentIds.length > 0) {
+        const { data: assessments } = await admin
+            .from('student_assessments')
+            .select('student_id, performed_at')
+            .in('student_id', studentIds)
+            .order('performed_at', { ascending: false });
+
+        for (const a of assessments || []) {
+            if (!assessmentMap.has(a.student_id)) {
+                assessmentMap.set(a.student_id, a.performed_at);
+            }
+        }
+    }
+
+    const now = new Date();
+    const students = (activeStudents || []).map((s) => {
+        const lastDate = assessmentMap.get(s.id);
+        if (!lastDate) {
+            return { id: s.id, name: s.full_name, status: 'never' as const };
+        }
+        const daysAgo = Math.floor((now.getTime() - new Date(lastDate).getTime()) / 86400000);
+        let status: 'on_track' | 'warning' | 'late';
+        if (daysAgo <= 30) status = 'on_track';
+        else if (daysAgo <= 60) status = 'warning';
+        else status = 'late';
+
+        return { id: s.id, name: s.full_name, lastAssessmentDate: lastDate, status, daysAgo };
+    });
+
+    // Sort: late first, then warning, on_track, never
+    const statusOrder = { late: 0, warning: 1, never: 2, on_track: 3 };
+    students.sort((a, b) => statusOrder[a.status] - statusOrder[b.status]);
+
+    return {
+        type: 'management',
+        totalActive: Number(mgmt.portfolio_size),
+        managedCount: Number(mgmt.managed_count),
+        managementRate: Number(mgmt.management_rate),
+        students,
+    };
 }

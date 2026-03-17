@@ -60,11 +60,13 @@ export function AttendanceCheckbox({
     }
 
     return (
-        <button
-            type="button"
+        <div
+            role="button"
+            tabIndex={0}
             onClick={handleClick}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleClick(e as any); } }}
             className={cn(
-                'flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left ring-1 transition',
+                'flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left ring-1 transition cursor-pointer',
                 isPending && 'opacity-60',
                 optimisticStatus === 'present' && 'bg-emerald-50 ring-emerald-200',
                 optimisticStatus === 'absent' && 'bg-red-50/60 ring-red-200',
@@ -96,6 +98,6 @@ export function AttendanceCheckbox({
             >
                 {name}
             </span>
-        </button>
+        </div>
     );
 }

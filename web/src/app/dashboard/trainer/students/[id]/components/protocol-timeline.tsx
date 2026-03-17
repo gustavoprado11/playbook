@@ -5,7 +5,8 @@ import { Button } from '@/components/ui/button';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { ChevronDown, ChevronUp, Calendar, Pencil, Trash2 } from 'lucide-react';
 import { formatDate, cn } from '@/lib/utils';
-import type { ProtocolGroup } from '@/lib/assessment-logic';
+import { buildChartData, type ProtocolGroup } from '@/lib/assessment-logic';
+import { MetricEvolutionChart } from '@/components/assessments/metric-evolution-chart';
 import type { AssessmentProtocol } from '@/types/database';
 import { EvolutionSummary } from './evolution-summary';
 import { NewResultDialog } from '../../new-result-dialog';
@@ -16,10 +17,12 @@ interface ProtocolTimelineProps {
     group: ProtocolGroup;
     studentId: string;
     protocols: AssessmentProtocol[];
+    readOnly?: boolean;
 }
 
-export function ProtocolTimeline({ group, studentId, protocols }: ProtocolTimelineProps) {
+export function ProtocolTimeline({ group, studentId, protocols, readOnly = false }: ProtocolTimelineProps) {
     const [isOpen, setIsOpen] = useState(true);
+    const chartData = buildChartData(group);
 
     async function handleDeleteAssessment(assessmentId: string) {
         try {
@@ -61,6 +64,13 @@ export function ProtocolTimeline({ group, studentId, protocols }: ProtocolTimeli
                     "space-y-6 transition-all duration-300 ease-in-out",
                     isOpen ? "opacity-100" : "grid-rows-[0fr] opacity-0 h-0 overflow-hidden"
                 )}>
+                    {/* Evolution Chart */}
+                    <MetricEvolutionChart
+                        data={chartData.data}
+                        metrics={chartData.metrics}
+                        protocolName={group.protocolName}
+                    />
+
                     {/* Evolution Summary Block */}
                     <EvolutionSummary evolution={group.latestEvolution} protocolName={group.protocolName} />
 
@@ -84,42 +94,44 @@ export function ProtocolTimeline({ group, studentId, protocols }: ProtocolTimeli
                                                 </p>
                                             )}
                                         </div>
-                                        <div className="flex items-center gap-2">
-                                            <NewResultDialog
-                                                studentId={studentId}
-                                                protocols={protocols}
-                                                assessment={assessment}
-                                                trigger={(
-                                                    <Button variant="ghost" size="sm" className="h-8 px-2 text-zinc-500 hover:text-zinc-900">
-                                                        <Pencil className="h-4 w-4" />
-                                                    </Button>
-                                                )}
-                                            />
-                                            <AlertDialog>
-                                                <AlertDialogTrigger asChild>
-                                                    <Button variant="ghost" size="sm" className="h-8 px-2 text-zinc-500 hover:text-red-600">
-                                                        <Trash2 className="h-4 w-4" />
-                                                    </Button>
-                                                </AlertDialogTrigger>
-                                                <AlertDialogContent>
-                                                    <AlertDialogHeader>
-                                                        <AlertDialogTitle>Excluir avaliação?</AlertDialogTitle>
-                                                        <AlertDialogDescription>
-                                                            Esta ação remove a avaliação e todos os resultados vinculados a ela.
-                                                        </AlertDialogDescription>
-                                                    </AlertDialogHeader>
-                                                    <AlertDialogFooter>
-                                                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                                        <AlertDialogAction
-                                                            className="bg-red-600 hover:bg-red-700"
-                                                            onClick={() => handleDeleteAssessment(assessment.id)}
-                                                        >
-                                                            Excluir
-                                                        </AlertDialogAction>
-                                                    </AlertDialogFooter>
-                                                </AlertDialogContent>
-                                            </AlertDialog>
-                                        </div>
+                                        {!readOnly && (
+                                            <div className="flex items-center gap-2">
+                                                <NewResultDialog
+                                                    studentId={studentId}
+                                                    protocols={protocols}
+                                                    assessment={assessment}
+                                                    trigger={(
+                                                        <Button variant="ghost" size="sm" className="h-8 px-2 text-zinc-500 hover:text-zinc-900">
+                                                            <Pencil className="h-4 w-4" />
+                                                        </Button>
+                                                    )}
+                                                />
+                                                <AlertDialog>
+                                                    <AlertDialogTrigger asChild>
+                                                        <Button variant="ghost" size="sm" className="h-8 px-2 text-zinc-500 hover:text-red-600">
+                                                            <Trash2 className="h-4 w-4" />
+                                                        </Button>
+                                                    </AlertDialogTrigger>
+                                                    <AlertDialogContent>
+                                                        <AlertDialogHeader>
+                                                            <AlertDialogTitle>Excluir avaliação?</AlertDialogTitle>
+                                                            <AlertDialogDescription>
+                                                                Esta ação remove a avaliação e todos os resultados vinculados a ela.
+                                                            </AlertDialogDescription>
+                                                        </AlertDialogHeader>
+                                                        <AlertDialogFooter>
+                                                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                                            <AlertDialogAction
+                                                                className="bg-red-600 hover:bg-red-700"
+                                                                onClick={() => handleDeleteAssessment(assessment.id)}
+                                                            >
+                                                                Excluir
+                                                            </AlertDialogAction>
+                                                        </AlertDialogFooter>
+                                                    </AlertDialogContent>
+                                                </AlertDialog>
+                                            </div>
+                                        )}
                                     </div>
 
                                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

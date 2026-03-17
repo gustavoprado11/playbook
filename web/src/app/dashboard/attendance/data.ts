@@ -93,7 +93,8 @@ async function fetchBaseAgenda(supabase: any, trainerId?: string | null) {
 }
 
 async function fetchWeekAgenda(supabase: any, weekStart: string, trainerId?: string | null) {
-    await ensureWeekAgendaFromBase(supabase, weekStart, trainerId);
+    const admin = createAdminClient();
+    await ensureWeekAgendaFromBase(admin, weekStart, trainerId);
 
     let slotsQuery = supabase
         .from('schedule_week_slots')

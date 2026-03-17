@@ -24,6 +24,7 @@ import type {
     Trainer,
 } from '@/types/database';
 import { WeeklySlotDialog } from './weekly-slot-dialog';
+import { AttendanceStatsPopover, type AttendanceDetail } from './attendance-stats-popover';
 
 type JoinedStudent = Student & { trainer: Trainer & { profile: Profile } };
 type JoinedTrainer = Trainer & { profile: Profile };
@@ -122,6 +123,30 @@ export function AttendanceWorkspace({
             absent,
             pending,
         };
+    }, [trainerFilteredWeek]);
+
+    const attendanceDetails = useMemo(() => {
+        const present: AttendanceDetail[] = [];
+        const absent: AttendanceDetail[] = [];
+
+        for (const slot of trainerFilteredWeek) {
+            const trainerName = slot.trainer?.profile?.full_name || '';
+            for (const entry of slot.entries) {
+                const studentName = entry.student?.full_name || entry.guest_name || 'Sem nome';
+                const isGuest = !entry.student_id && !!entry.guest_name;
+                const detail: AttendanceDetail = {
+                    studentName,
+                    isGuest,
+                    trainerName,
+                    weekday: slot.weekday,
+                    startTime: slot.start_time,
+                };
+                if (entry.status === 'present') present.push(detail);
+                else if (entry.status === 'absent') absent.push(detail);
+            }
+        }
+
+        return { present, absent };
     }, [trainerFilteredWeek]);
 
     const searchResults = useMemo(() => {
@@ -262,8 +287,26 @@ export function AttendanceWorkspace({
                         <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
                             <MetricBox label="Horários" value={String(summary.slots)} />
                             <MetricBox label="Vagas" value={String(summary.capacity)} />
-                            <MetricBox label="Presentes" value={String(summary.present)} />
-                            <MetricBox label="Faltas" value={String(summary.absent)} />
+                            <AttendanceStatsPopover
+                                title="Presentes"
+                                count={summary.present}
+                                details={attendanceDetails.present}
+                                variant="present"
+                            >
+                                <button className="cursor-pointer transition-opacity hover:opacity-80 text-left">
+                                    <MetricBox label="Presentes" value={String(summary.present)} />
+                                </button>
+                            </AttendanceStatsPopover>
+                            <AttendanceStatsPopover
+                                title="Faltas"
+                                count={summary.absent}
+                                details={attendanceDetails.absent}
+                                variant="absent"
+                            >
+                                <button className="cursor-pointer transition-opacity hover:opacity-80 text-left">
+                                    <MetricBox label="Faltas" value={String(summary.absent)} />
+                                </button>
+                            </AttendanceStatsPopover>
                         </div>
                     </div>
                 </div>
@@ -869,8 +912,8 @@ function MobileAgendaStack({
                                                         publicToken={publicToken}
                                                         onEditSlot={() => onEditCell(mode, slot)}
                                                     >
-                                                        <button type="button" className={cn(
-                                                            'w-full rounded-[18px] border border-zinc-200 bg-zinc-50/80 p-3 text-left transition-all duration-200',
+                                                        <div className={cn(
+                                                            'w-full rounded-[18px] border border-zinc-200 bg-zinc-50/80 p-3 text-left transition-all duration-200 cursor-pointer',
                                                             isSearching && matchedSlotIds.has(slot.id) && 'ring-2 ring-emerald-400 border-emerald-300',
                                                             isSearching && !matchedSlotIds.has(slot.id) && 'opacity-40',
                                                         )}>
@@ -921,7 +964,7 @@ function MobileAgendaStack({
                                                                     </div>
                                                                 )}
                                                             </div>
-                                                        </button>
+                                                        </div>
                                                     </SlotCellPopover>
                                                 );
                                             })}

@@ -52,13 +52,23 @@ export async function ensureWeekAgendaFromBase(
         existingWeekSlotsQuery,
     ]);
 
-    const existingByBase = new Map(
+    const existingByBase = new Set(
         (existingWeekSlots || [])
             .filter((slot: any) => slot.base_slot_id)
-            .map((slot: any) => [slot.base_slot_id, slot])
+            .map((slot: any) => slot.base_slot_id as string)
     );
 
-    const missingBaseSlots = (baseSlots || []).filter((slot: any) => !existingByBase.has(slot.id));
+    // Also track by composite key to avoid unique constraint violations
+    const existingByKey = new Set(
+        (existingWeekSlots || []).map((slot: any) =>
+            `${slot.trainer_id}|${slot.weekday}|${slot.start_time}`
+        )
+    );
+
+    const missingBaseSlots = (baseSlots || []).filter((slot: any) =>
+        !existingByBase.has(slot.id) &&
+        !existingByKey.has(`${slot.trainer_id}|${slot.weekday}|${slot.start_time}`)
+    );
 
     if (missingBaseSlots.length === 0) {
         return;

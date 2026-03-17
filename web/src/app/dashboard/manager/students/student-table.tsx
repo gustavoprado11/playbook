@@ -50,8 +50,10 @@ import {
     UserX,
     UserCheck,
     Pencil,
-    Filter
+    Eye,
+    ArrowUpDown,
 } from 'lucide-react';
+import Link from 'next/link';
 import type { Student, Trainer, Profile } from '@/types/database';
 import { updateStudent, archiveStudent, unarchiveStudent } from '@/app/actions/manager';
 import { EditStudentDialog } from './edit-student-dialog';
@@ -66,38 +68,63 @@ interface ManagerStudentTableProps {
 }
 
 type FilterStatus = 'all' | 'active' | 'paused' | 'cancelled' | 'archived';
+type SortField = 'name' | 'trainer' | 'status' | 'start_date';
 
 export function ManagerStudentTable({ students, trainers }: ManagerStudentTableProps) {
     const [search, setSearch] = useState('');
     const [filter, setFilter] = useState<FilterStatus>('active');
     const [isLoading, setIsLoading] = useState(false);
+    const [sortField, setSortField] = useState<SortField>('name');
+    const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
 
     // Action State
     const [studentToArchive, setStudentToArchive] = useState<ExtendedStudent | null>(null);
     const [studentToEdit, setStudentToEdit] = useState<ExtendedStudent | null>(null);
 
-    const filteredStudents = useMemo(() => {
-        return students.filter(s => {
-            // Archive Filter Logic
-            if (filter === 'archived') {
-                if (!s.is_archived) return false;
-            } else {
-                if (s.is_archived) return false; // Hide archived by default for other filters
-                if (filter !== 'all' && s.status !== filter) return false;
-            }
+    const toggleSort = (field: SortField) => {
+        if (sortField === field) {
+            setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+        } else {
+            setSortField(field);
+            setSortDir('asc');
+        }
+    };
 
-            // Search Logic
-            if (search) {
-                const searchLower = search.toLowerCase();
-                return (
-                    s.full_name.toLowerCase().includes(searchLower) ||
-                    s.email?.toLowerCase().includes(searchLower) ||
-                    s.trainer?.profile?.full_name.toLowerCase().includes(searchLower)
-                );
-            }
-            return true;
-        });
-    }, [students, search, filter]);
+    const filteredStudents = useMemo(() => {
+        return students
+            .filter(s => {
+                // Archive Filter Logic
+                if (filter === 'archived') {
+                    if (!s.is_archived) return false;
+                } else {
+                    if (s.is_archived) return false;
+                    if (filter !== 'all' && s.status !== filter) return false;
+                }
+
+                // Search Logic
+                if (search) {
+                    const searchLower = search.toLowerCase();
+                    return (
+                        s.full_name.toLowerCase().includes(searchLower) ||
+                        s.email?.toLowerCase().includes(searchLower) ||
+                        s.trainer?.profile?.full_name.toLowerCase().includes(searchLower)
+                    );
+                }
+                return true;
+            })
+            .sort((a, b) => {
+                const dir = sortDir === 'asc' ? 1 : -1;
+                if (sortField === 'name') return a.full_name.localeCompare(b.full_name) * dir;
+                if (sortField === 'trainer') {
+                    const ta = a.trainer?.profile?.full_name || '';
+                    const tb = b.trainer?.profile?.full_name || '';
+                    return ta.localeCompare(tb) * dir;
+                }
+                if (sortField === 'status') return a.status.localeCompare(b.status) * dir;
+                if (sortField === 'start_date') return (a.start_date.localeCompare(b.start_date)) * dir;
+                return 0;
+            });
+    }, [students, search, filter, sortField, sortDir]);
 
     const handleArchive = async () => {
         if (!studentToArchive) return;
@@ -216,10 +243,30 @@ export function ManagerStudentTable({ students, trainers }: ManagerStudentTableP
                 <Table>
                     <TableHeader className="bg-zinc-50/50">
                         <TableRow>
-                            <TableHead>Aluno</TableHead>
-                            <TableHead>Treinador</TableHead>
-                            <TableHead className="text-center">Status</TableHead>
-                            <TableHead>Ínicio</TableHead>
+                            <TableHead className="cursor-pointer hover:text-zinc-900" onClick={() => toggleSort('name')}>
+                                <div className="flex items-center gap-1">
+                                    Aluno
+                                    <ArrowUpDown className="h-3 w-3" />
+                                </div>
+                            </TableHead>
+                            <TableHead className="cursor-pointer hover:text-zinc-900" onClick={() => toggleSort('trainer')}>
+                                <div className="flex items-center gap-1">
+                                    Treinador
+                                    <ArrowUpDown className="h-3 w-3" />
+                                </div>
+                            </TableHead>
+                            <TableHead className="text-center cursor-pointer hover:text-zinc-900" onClick={() => toggleSort('status')}>
+                                <div className="flex items-center justify-center gap-1">
+                                    Status
+                                    <ArrowUpDown className="h-3 w-3" />
+                                </div>
+                            </TableHead>
+                            <TableHead className="cursor-pointer hover:text-zinc-900" onClick={() => toggleSort('start_date')}>
+                                <div className="flex items-center gap-1">
+                                    Início
+                                    <ArrowUpDown className="h-3 w-3" />
+                                </div>
+                            </TableHead>
                             <TableHead className="w-[50px]"></TableHead>
                         </TableRow>
                     </TableHeader>
@@ -239,7 +286,9 @@ export function ManagerStudentTable({ students, trainers }: ManagerStudentTableP
                                                 <User className="h-4 w-4" />
                                             </div>
                                             <div>
-                                                <p className="font-medium text-zinc-900">{student.full_name}</p>
+                                                <Link href={`/dashboard/manager/students/${student.id}`} className="font-medium text-zinc-900 hover:text-blue-600 hover:underline transition-colors">
+                                                    {student.full_name}
+                                                </Link>
                                                 <p className="text-xs text-zinc-500">{student.email || '-'}</p>
                                             </div>
                                         </div>
@@ -267,6 +316,12 @@ export function ManagerStudentTable({ students, trainers }: ManagerStudentTableP
                                             </DropdownMenuTrigger>
                                             <DropdownMenuContent align="end">
                                                 <DropdownMenuLabel>Ações</DropdownMenuLabel>
+                                                <DropdownMenuItem asChild>
+                                                    <Link href={`/dashboard/manager/students/${student.id}`}>
+                                                        <Eye className="mr-2 h-4 w-4" />
+                                                        Ver Detalhes
+                                                    </Link>
+                                                </DropdownMenuItem>
                                                 <DropdownMenuItem onClick={() => setStudentToEdit(student)}>
                                                     <Pencil className="mr-2 h-4 w-4" />
                                                     Editar Dados

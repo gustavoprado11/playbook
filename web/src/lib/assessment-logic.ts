@@ -1,4 +1,5 @@
-import { StudentAssessment, AssessmentResult } from '@/types/database';
+import { StudentAssessment, AssessmentResult, ProtocolMetric } from '@/types/database';
+import type { MetricChartData, MetricInfo } from '@/components/assessments/metric-evolution-chart';
 
 export interface MetricEvolution {
     metricId: string;
@@ -84,6 +85,58 @@ export function processAssessmentHistory(assessments: StudentAssessment[]): Prot
 
         return group;
     });
+}
+
+const CHART_COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6'];
+
+export function buildChartData(group: ProtocolGroup): { data: MetricChartData[]; metrics: MetricInfo[] } {
+    // Sort assessments ascending (oldest first) for the chart
+    const sorted = [...group.assessments].sort(
+        (a, b) => new Date(a.performed_at).getTime() - new Date(b.performed_at).getTime()
+    );
+
+    // Collect unique metrics from all assessments
+    const metricMap = new Map<string, { name: string; unit: string }>();
+    for (const assessment of sorted) {
+        for (const result of assessment.results || []) {
+            if (result.metric && !metricMap.has(result.metric_id)) {
+                metricMap.set(result.metric_id, {
+                    name: result.metric.name,
+                    unit: result.metric.unit,
+                });
+            }
+        }
+    }
+
+    const metricsArray = Array.from(metricMap.values());
+    const metrics: MetricInfo[] = metricsArray.map((m, i) => ({
+        name: m.name,
+        unit: m.unit,
+        color: CHART_COLORS[i % CHART_COLORS.length],
+    }));
+
+    const data: MetricChartData[] = sorted.map((assessment) => {
+        const d = new Date(assessment.performed_at + 'T12:00:00');
+        const dd = String(d.getDate()).padStart(2, '0');
+        const mm = String(d.getMonth() + 1).padStart(2, '0');
+        const yyyy = d.getFullYear();
+
+        const point: MetricChartData = {
+            date: `${dd}/${mm}`,
+            fullDate: `${dd}/${mm}/${yyyy}`,
+        };
+
+        for (const result of assessment.results || []) {
+            const metricInfo = metricMap.get(result.metric_id);
+            if (metricInfo) {
+                point[metricInfo.name] = Number(result.value);
+            }
+        }
+
+        return point;
+    });
+
+    return { data, metrics };
 }
 
 export function getManagementStatus(assessments: StudentAssessment[]) {
