@@ -3,7 +3,10 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
-import { ChevronDown, ChevronUp, Calendar, Pencil, Trash2 } from 'lucide-react';
+import { ChevronDown, ChevronUp, Calendar, Pencil, Trash2, ImageIcon, FileText, X } from 'lucide-react';
+import { Dialog, DialogContent } from '@/components/ui/dialog';
+import { createClient } from '@/lib/supabase/client';
+import type { AssessmentAttachment } from '@/types/database';
 import { formatDate, cn } from '@/lib/utils';
 import { buildChartData, type ProtocolGroup } from '@/lib/assessment-logic';
 import { MetricEvolutionChart } from '@/components/assessments/metric-evolution-chart';
@@ -144,6 +147,17 @@ export function ProtocolTimeline({ group, studentId, protocols, readOnly = false
                                             </div>
                                         ))}
                                     </div>
+
+                                    {assessment.attachments && assessment.attachments.length > 0 && (
+                                        <div className="mt-4 pt-3 border-t border-zinc-100">
+                                            <span className="text-xs text-zinc-500 block mb-2">Anexos</span>
+                                            <div className="flex gap-2 flex-wrap">
+                                                {assessment.attachments.map(att => (
+                                                    <AttachmentThumbnail key={att.id} attachment={att} />
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         ))}
@@ -151,5 +165,67 @@ export function ProtocolTimeline({ group, studentId, protocols, readOnly = false
                 </div>
             </div>
         </div>
+    );
+}
+
+function AttachmentThumbnail({ attachment }: { attachment: AssessmentAttachment }) {
+    const [url, setUrl] = useState<string | null>(null);
+    const [lightboxOpen, setLightboxOpen] = useState(false);
+    const isImage = attachment.file_type.startsWith('image/');
+
+    const loadUrl = async () => {
+        if (url) return url;
+        const supabase = createClient();
+        const { data } = await supabase.storage
+            .from('assessment-photos')
+            .createSignedUrl(attachment.file_path, 3600);
+        const signedUrl = data?.signedUrl || '';
+        setUrl(signedUrl);
+        return signedUrl;
+    };
+
+    const handleClick = async () => {
+        const signedUrl = await loadUrl();
+        if (!signedUrl) return;
+
+        if (isImage) {
+            setLightboxOpen(true);
+        } else {
+            window.open(signedUrl, '_blank');
+        }
+    };
+
+    return (
+        <>
+            <button
+                type="button"
+                onClick={handleClick}
+                className="flex items-center gap-2 rounded-lg border border-zinc-200 bg-zinc-50 px-2.5 py-1.5 text-sm hover:bg-zinc-100 transition-colors cursor-pointer"
+            >
+                {isImage ? (
+                    <ImageIcon className="h-4 w-4 text-zinc-400" />
+                ) : (
+                    <FileText className="h-4 w-4 text-zinc-400" />
+                )}
+                <span className="text-xs text-zinc-600 truncate max-w-[100px]">
+                    {attachment.file_name}
+                </span>
+            </button>
+
+            {isImage && (
+                <Dialog open={lightboxOpen} onOpenChange={setLightboxOpen}>
+                    <DialogContent className="max-w-3xl p-2">
+                        {url && (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                                src={url}
+                                alt={attachment.file_name}
+                                className="w-full h-auto rounded-lg"
+                            />
+                        )}
+                    </DialogContent>
+                </Dialog>
+            )}
+        </>
     );
 }

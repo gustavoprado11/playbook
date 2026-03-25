@@ -21,9 +21,11 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { FileUpload } from '@/components/ui/file-upload';
+import { createClient } from '@/lib/supabase/client';
 import type { AssessmentProtocol, StudentAssessment } from '@/types/database';
 import { Plus } from 'lucide-react';
-import { ReactNode, useEffect, useState } from 'react';
+import { ReactNode, useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
 interface NewResultDialogProps {
@@ -43,9 +45,15 @@ export function NewResultDialog({
     const [loading, setLoading] = useState(false);
     const [selectedProtocolId, setSelectedProtocolId] = useState<string>(assessment?.protocol_id || '');
     const [metricValues, setMetricValues] = useState<Record<string, string>>({});
+    const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+    const [attachmentsToRemove, setAttachmentsToRemove] = useState<string[]>([]);
 
     const isEditing = Boolean(assessment);
     const selectedProtocol = protocols.find(p => p.id === selectedProtocolId);
+
+    const existingAttachments = (assessment?.attachments || []).filter(
+        a => !attachmentsToRemove.includes(a.id)
+    );
 
     useEffect(() => {
         if (!open) return;
@@ -57,22 +65,35 @@ export function NewResultDialog({
                     (assessment.results || []).map((result) => [result.metric_id, String(result.value)])
                 )
             );
-            return;
+        } else {
+            setSelectedProtocolId('');
+            setMetricValues({});
         }
-
-        setSelectedProtocolId('');
-        setMetricValues({});
+        setPendingFiles([]);
+        setAttachmentsToRemove([]);
     }, [assessment, open]);
 
     const handleProtocolChange = (value: string) => {
         if (isEditing) return;
         setSelectedProtocolId(value);
-        setMetricValues({}); // Reset values when protocol changes
+        setMetricValues({});
     };
 
     const handleValueChange = (metricId: string, value: string) => {
         setMetricValues(prev => ({ ...prev, [metricId]: value }));
     };
+
+    const handleFilesSelected = useCallback((files: File[]) => {
+        setPendingFiles(prev => [...prev, ...files]);
+    }, []);
+
+    const handleRemovePending = useCallback((index: number) => {
+        setPendingFiles(prev => prev.filter((_, i) => i !== index));
+    }, []);
+
+    const handleRemoveExisting = useCallback((id: string) => {
+        setAttachmentsToRemove(prev => [...prev, id]);
+    }, []);
 
     async function handleSubmit(formData: FormData) {
         if (!selectedProtocol) return;
@@ -82,7 +103,6 @@ export function NewResultDialog({
             const date = formData.get('performed_at') as string;
             const notes = formData.get('notes') as string;
 
-            // Validate all required metrics
             const results = selectedProtocol.metrics?.map(metric => {
                 const valStr = metricValues[metric.id];
                 if (metric.is_required && (!valStr || valStr === '')) {
@@ -96,6 +116,35 @@ export function NewResultDialog({
 
             if (!date) throw new Error('Data da medição é obrigatória');
 
+            // Upload pending files to Supabase Storage
+            let uploadedAttachments: { file_path: string; file_name: string; file_type: string; file_size: number }[] = [];
+
+            if (pendingFiles.length > 0) {
+                const supabase = createClient();
+
+                for (const file of pendingFiles) {
+                    const ext = file.name.split('.').pop() || 'bin';
+                    const filePath = `${studentId}/${crypto.randomUUID()}.${ext}`;
+
+                    const { error: uploadError } = await supabase.storage
+                        .from('assessment-photos')
+                        .upload(filePath, file);
+
+                    if (uploadError) {
+                        console.error('Upload error:', uploadError);
+                        toast.error(`Erro ao enviar ${file.name}`);
+                        continue;
+                    }
+
+                    uploadedAttachments.push({
+                        file_path: filePath,
+                        file_name: file.name,
+                        file_type: file.type,
+                        file_size: file.size,
+                    });
+                }
+            }
+
             if (assessment) {
                 await updateAssessment({
                     assessment_id: assessment.id,
@@ -104,6 +153,8 @@ export function NewResultDialog({
                     performed_at: date,
                     notes,
                     results,
+                    attachments: uploadedAttachments.length > 0 ? uploadedAttachments : undefined,
+                    attachments_to_remove: attachmentsToRemove.length > 0 ? attachmentsToRemove : undefined,
                 });
             } else {
                 await createAssessment({
@@ -111,17 +162,19 @@ export function NewResultDialog({
                     protocol_id: selectedProtocol.id,
                     performed_at: date,
                     notes,
-                    results
+                    results,
+                    attachments: uploadedAttachments.length > 0 ? uploadedAttachments : undefined,
                 });
             }
 
             toast.success(isEditing ? 'Avaliação atualizada com sucesso!' : 'Avaliação registrada com sucesso!');
             setOpen(false);
-            // Reset
             if (!isEditing) {
                 setSelectedProtocolId('');
             }
             setMetricValues({});
+            setPendingFiles([]);
+            setAttachmentsToRemove([]);
         } catch (error: any) {
             console.error(error);
             toast.error(error.message || `Erro ao ${isEditing ? 'atualizar' : 'registrar'} avaliação`);
@@ -130,7 +183,6 @@ export function NewResultDialog({
         }
     }
 
-    // Group protocols by pillar
     const groupedProtocols = protocols.reduce((acc, protocol) => {
         if (!acc[protocol.pillar]) acc[protocol.pillar] = [];
         acc[protocol.pillar].push(protocol);
@@ -238,6 +290,16 @@ export function NewResultDialog({
                                     placeholder="Contexto sobre a avaliação..."
                                     className="resize-none"
                                     defaultValue={assessment?.notes || ''}
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label>Fotos e anexos</Label>
+                                <FileUpload
+                                    onFilesSelected={handleFilesSelected}
+                                    pendingFiles={pendingFiles}
+                                    existingFiles={existingAttachments}
+                                    onRemovePending={handleRemovePending}
+                                    onRemoveExisting={handleRemoveExisting}
                                 />
                             </div>
                         </div>

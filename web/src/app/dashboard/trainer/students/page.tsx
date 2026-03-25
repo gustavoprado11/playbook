@@ -5,7 +5,22 @@ import { StudentTable } from './student-table';
 import { Button } from '@/components/ui/button';
 import { UserPlus } from 'lucide-react';
 import Link from 'next/link';
-import type { Student } from '@/types/database';
+import type { Student, Profile } from '@/types/database';
+
+async function getOtherTrainers(currentTrainerId: string) {
+    const supabase = await createClient();
+    const { data } = await supabase
+        .from('trainers')
+        .select('id, profile:profiles!inner(full_name)')
+        .eq('is_active', true)
+        .neq('id', currentTrainerId)
+        .order('created_at');
+    // Supabase returns profile as object when using !inner
+    return (data || []).map((t: any) => ({
+        id: t.id as string,
+        profile: { full_name: (Array.isArray(t.profile) ? t.profile[0]?.full_name : t.profile?.full_name) || '' },
+    }));
+}
 
 async function getTrainerStudents(trainerId: string) {
     const supabase = await createClient();
@@ -69,9 +84,10 @@ export default async function TrainerStudentsPage() {
         );
     }
 
-    const [students, latestAssessments] = await Promise.all([
+    const [students, latestAssessments, otherTrainers] = await Promise.all([
         getTrainerStudents(trainerId),
         getLatestAssessments(trainerId),
+        getOtherTrainers(trainerId),
     ]);
 
     return (
@@ -94,6 +110,7 @@ export default async function TrainerStudentsPage() {
             <StudentTable
                 students={students}
                 assessmentMap={latestAssessments}
+                trainers={otherTrainers}
             />
         </div>
     );

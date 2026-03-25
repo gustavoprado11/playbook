@@ -580,6 +580,101 @@ export async function trainerArchiveStudent(studentId: string) {
 }
 
 // =====================================================
+// TRAINER: TRANSFER STUDENT
+// =====================================================
+
+export async function trainerTransferStudent(studentId: string, targetTrainerId: string) {
+    const profile = await getProfile();
+    if (!profile || profile.role !== 'trainer') {
+        throw new Error('Não autorizado');
+    }
+
+    const trainerId = await getTrainerId();
+    if (!trainerId) {
+        throw new Error('Perfil de treinador não encontrado');
+    }
+
+    if (targetTrainerId === trainerId) {
+        throw new Error('Não é possível transferir para si mesmo');
+    }
+
+    const supabase = await createClient();
+
+    // Verify student belongs to this trainer (RLS enforces ownership)
+    const { data: student, error: fetchError } = await supabase
+        .from('students')
+        .select('id, trainer_id, full_name')
+        .eq('id', studentId)
+        .single();
+
+    if (fetchError || !student) {
+        throw new Error('Aluno não encontrado');
+    }
+
+    if (student.trainer_id !== trainerId) {
+        throw new Error('Você só pode transferir alunos da sua carteira');
+    }
+
+    const admin = createAdminClient();
+
+    // Update student trainer_id
+    const { error: updateError } = await admin
+        .from('students')
+        .update({ trainer_id: targetTrainerId })
+        .eq('id', studentId);
+
+    if (updateError) {
+        throw new Error('Erro ao transferir aluno');
+    }
+
+    // Log student_event for audit
+    try {
+        await admin.from('student_events').insert({
+            student_id: studentId,
+            event_type: 'trainer_change',
+            old_value: { trainer_id: trainerId },
+            new_value: { trainer_id: targetTrainerId },
+            event_date: new Date().toISOString(),
+            created_by: profile.id,
+        });
+    } catch {
+        // Silent — audit failure should not block transfer
+    }
+
+    // Clean up schedule entries (student leaves old trainer's agenda)
+    await admin
+        .from('schedule_base_entries')
+        .delete()
+        .eq('student_id', studentId);
+
+    await admin
+        .from('schedule_week_entries')
+        .delete()
+        .eq('student_id', studentId);
+
+    // Log activity (fire-and-forget)
+    try {
+        await admin.from('trainer_activity_log').insert({
+            trainer_id: trainerId,
+            activity_type: 'student_transferred',
+            metadata: {
+                student_id: studentId,
+                student_name: student.full_name,
+                target_trainer_id: targetTrainerId,
+            },
+        });
+    } catch {
+        // Silent failure
+    }
+
+    revalidatePath('/dashboard/trainer/students');
+    revalidatePath('/dashboard/trainer/attendance');
+    revalidatePath('/dashboard/manager/students');
+    revalidatePath('/dashboard/manager/attendance');
+    return { success: true };
+}
+
+// =====================================================
 // LIVE KPI CALCULATION
 // =====================================================
 
@@ -1076,6 +1171,7 @@ export async function getTrainerFullHistory(input: {
                 break;
             }
             case 'student_archived': detail = `${studentName || 'Aluno'} arquivado`; break;
+            case 'student_transferred': detail = `${studentName || 'Aluno'} transferido`; break;
             default: detail = 'Atividade registrada';
         }
 

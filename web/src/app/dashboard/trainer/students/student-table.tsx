@@ -24,6 +24,21 @@ import {
     AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
+import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
@@ -42,28 +57,38 @@ import {
     Calendar,
     ArrowUpDown,
     Archive,
+    ArrowRightLeft,
 } from 'lucide-react';
 import Link from 'next/link';
-import { trainerArchiveStudent } from '@/app/actions/manager';
+import { trainerArchiveStudent, trainerTransferStudent } from '@/app/actions/manager';
+import type { Profile } from '@/types/database';
 import type { Student } from '@/types/database';
 import { format, addDays, differenceInDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
+interface TrainerOption {
+    id: string;
+    profile: Pick<Profile, 'full_name'>;
+}
+
 interface StudentTableProps {
     students: Student[];
     assessmentMap: Map<string, string>; // studentId -> date
+    trainers?: TrainerOption[];
 }
 
 type FilterStatus = 'all' | 'late' | 'on_time' | 'due_soon';
 type SortField = 'name' | 'last_assessment' | 'status';
 
-export function StudentTable({ students, assessmentMap }: StudentTableProps) {
+export function StudentTable({ students, assessmentMap, trainers = [] }: StudentTableProps) {
     const router = useRouter();
     const [search, setSearch] = useState('');
     const [filter, setFilter] = useState<FilterStatus>('all');
     const [sort, setSort] = useState<SortField>('status');
     const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
     const [archiveTarget, setArchiveTarget] = useState<{ id: string; name: string } | null>(null);
+    const [transferTarget, setTransferTarget] = useState<{ id: string; name: string } | null>(null);
+    const [selectedTrainerId, setSelectedTrainerId] = useState('');
     const [isPending, startTransition] = useTransition();
 
     const today = new Date();
@@ -163,6 +188,21 @@ export function StudentTable({ students, assessmentMap }: StudentTableProps) {
                 router.refresh();
             } catch (error) {
                 toast.error(error instanceof Error ? error.message : 'Erro ao arquivar aluno');
+            }
+        });
+    }
+
+    function handleTransfer() {
+        if (!transferTarget || !selectedTrainerId) return;
+        startTransition(async () => {
+            try {
+                await trainerTransferStudent(transferTarget.id, selectedTrainerId);
+                toast.success(`${transferTarget.name} foi transferido`);
+                setTransferTarget(null);
+                setSelectedTrainerId('');
+                router.refresh();
+            } catch (error) {
+                toast.error(error instanceof Error ? error.message : 'Erro ao transferir aluno');
             }
         });
     }
@@ -338,6 +378,14 @@ export function StudentTable({ students, assessmentMap }: StudentTableProps) {
                                                         Nova Avaliação
                                                     </DropdownMenuItem>
                                                 </Link>
+                                                {trainers.length > 0 && (
+                                                    <DropdownMenuItem
+                                                        onClick={() => setTransferTarget({ id: student.id, name: student.full_name })}
+                                                    >
+                                                        <ArrowRightLeft className="mr-2 h-4 w-4" />
+                                                        Transferir aluno
+                                                    </DropdownMenuItem>
+                                                )}
                                                 <DropdownMenuSeparator />
                                                 <DropdownMenuItem
                                                     onClick={() => setArchiveTarget({ id: student.id, name: student.full_name })}
@@ -377,6 +425,42 @@ export function StudentTable({ students, assessmentMap }: StudentTableProps) {
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
+
+            <Dialog open={!!transferTarget} onOpenChange={(v) => { if (!v) { setTransferTarget(null); setSelectedTrainerId(''); } }}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Transferir aluno</DialogTitle>
+                        <DialogDescription>
+                            {transferTarget?.name} será transferido para outro treinador e removido da sua lista e agenda.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="py-4">
+                        <label className="text-sm font-medium text-zinc-700 mb-2 block">
+                            Treinador destino
+                        </label>
+                        <Select value={selectedTrainerId} onValueChange={setSelectedTrainerId}>
+                            <SelectTrigger className="w-full">
+                                <SelectValue placeholder="Selecionar treinador" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {trainers.map((t) => (
+                                    <SelectItem key={t.id} value={t.id}>
+                                        {t.profile.full_name}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => { setTransferTarget(null); setSelectedTrainerId(''); }} disabled={isPending}>
+                            Cancelar
+                        </Button>
+                        <Button onClick={handleTransfer} disabled={isPending || !selectedTrainerId}>
+                            {isPending ? 'Transferindo...' : 'Transferir'}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }

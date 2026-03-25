@@ -282,6 +282,26 @@ export async function createAssessment(input: CreateAssessmentInput) {
         }
     }
 
+    // 3. Create Attachments (if any)
+    if (input.attachments && input.attachments.length > 0) {
+        const attachmentsToInsert = input.attachments.map(a => ({
+            assessment_id: assessment.id,
+            file_path: a.file_path,
+            file_name: a.file_name,
+            file_type: a.file_type,
+            file_size: a.file_size,
+        }));
+
+        const { error: attachError } = await supabase
+            .from('assessment_attachments')
+            .insert(attachmentsToInsert);
+
+        if (attachError) {
+            console.error('Error saving attachments:', attachError);
+            // Non-blocking — assessment was already created
+        }
+    }
+
     revalidatePath(`/dashboard/trainer/students/${input.student_id}`);
     revalidatePath('/dashboard/trainer/students');
     revalidatePath('/dashboard/trainer'); // Update KPIs
@@ -289,7 +309,7 @@ export async function createAssessment(input: CreateAssessmentInput) {
     return assessment as StudentAssessment;
 }
 
-export async function updateAssessment(input: CreateAssessmentInput & { assessment_id: string }) {
+export async function updateAssessment(input: CreateAssessmentInput & { assessment_id: string; attachments_to_remove?: string[] }) {
     const { supabase } = await checkAuth();
 
     const { error: assessmentError } = await supabase
@@ -334,6 +354,39 @@ export async function updateAssessment(input: CreateAssessmentInput & { assessme
         }
     }
 
+    // Remove attachments (if any)
+    if (input.attachments_to_remove && input.attachments_to_remove.length > 0) {
+        // Fetch file paths to delete from storage
+        const { data: toRemove } = await supabase
+            .from('assessment_attachments')
+            .select('id, file_path')
+            .in('id', input.attachments_to_remove);
+
+        if (toRemove && toRemove.length > 0) {
+            await supabase.storage
+                .from('assessment-photos')
+                .remove(toRemove.map(a => a.file_path));
+
+            await supabase
+                .from('assessment_attachments')
+                .delete()
+                .in('id', input.attachments_to_remove);
+        }
+    }
+
+    // Add new attachments (if any)
+    if (input.attachments && input.attachments.length > 0) {
+        await supabase
+            .from('assessment_attachments')
+            .insert(input.attachments.map(a => ({
+                assessment_id: input.assessment_id,
+                file_path: a.file_path,
+                file_name: a.file_name,
+                file_type: a.file_type,
+                file_size: a.file_size,
+            })));
+    }
+
     revalidatePath(`/dashboard/trainer/students/${input.student_id}`);
     revalidatePath('/dashboard/trainer/students');
     revalidatePath('/dashboard/trainer');
@@ -342,6 +395,18 @@ export async function updateAssessment(input: CreateAssessmentInput & { assessme
 
 export async function deleteAssessment(studentId: string, assessmentId: string) {
     const { supabase } = await checkAuth();
+
+    // Delete attachment files from storage before cascade deletes the rows
+    const { data: attachments } = await supabase
+        .from('assessment_attachments')
+        .select('file_path')
+        .eq('assessment_id', assessmentId);
+
+    if (attachments && attachments.length > 0) {
+        await supabase.storage
+            .from('assessment-photos')
+            .remove(attachments.map(a => a.file_path));
+    }
 
     const { error } = await supabase
         .from('student_assessments')
@@ -372,7 +437,8 @@ export async function getStudentAssessments(studentId: string) {
             *,
             protocol:assessment_protocols(*, metrics:protocol_metrics(*)),
             results:assessment_results(*, metric:protocol_metrics(*)),
-            creator:profiles(full_name)
+            creator:profiles(full_name),
+            attachments:assessment_attachments(*)
         `)
         .eq('student_id', studentId)
         .order('performed_at', { ascending: false });

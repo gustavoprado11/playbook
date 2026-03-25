@@ -232,6 +232,16 @@ export interface ProtocolMetric {
   created_at: string;
 }
 
+export interface AssessmentAttachment {
+  id: string;
+  assessment_id: string;
+  file_path: string;
+  file_name: string;
+  file_type: string;
+  file_size: number;
+  created_at: string;
+}
+
 export interface StudentAssessment {
   id: string;
   student_id: string;
@@ -244,6 +254,7 @@ export interface StudentAssessment {
   protocol?: AssessmentProtocol & { metrics: ProtocolMetric[] };
   results?: AssessmentResult[];
   creator?: Profile;
+  attachments?: AssessmentAttachment[];
 }
 
 export interface AssessmentResult {
@@ -398,6 +409,12 @@ export interface CreateAssessmentInput {
   results: {
     metric_id: string;
     value: number;
+  }[];
+  attachments?: {
+    file_path: string;
+    file_name: string;
+    file_type: string;
+    file_size: number;
   }[];
 }
 
