@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { getProfile, getTrainerId } from '@/app/actions/auth';
 import { redirect } from 'next/navigation';
 import { StudentTable } from './student-table';
@@ -8,8 +9,9 @@ import Link from 'next/link';
 import type { Student } from '@/types/database';
 
 async function getOtherTrainers(currentTrainerId: string) {
-    const supabase = await createClient();
-    const { data } = await supabase
+    // Use adminClient to bypass RLS — trainers are on the same team
+    const admin = createAdminClient();
+    const { data } = await admin
         .from('trainers')
         .select('id, profile:profiles!inner(full_name)')
         .eq('is_active', true)
