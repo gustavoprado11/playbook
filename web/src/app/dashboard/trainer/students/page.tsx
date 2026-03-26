@@ -1,5 +1,4 @@
 import { createClient } from '@/lib/supabase/server';
-import { createAdminClient } from '@/lib/supabase/admin';
 import { getProfile, getTrainerId } from '@/app/actions/auth';
 import { redirect } from 'next/navigation';
 import { StudentTable } from './student-table';
@@ -9,8 +8,8 @@ import Link from 'next/link';
 import type { Student } from '@/types/database';
 
 async function getOtherTrainers(currentTrainerId: string) {
-    const admin = createAdminClient();
-    const { data } = await admin
+    const supabase = await createClient();
+    const { data } = await supabase
         .from('trainers')
         .select('id, profile:profiles!inner(full_name)')
         .eq('is_active', true)
