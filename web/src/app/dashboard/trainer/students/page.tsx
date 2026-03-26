@@ -1,21 +1,21 @@
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { getProfile, getTrainerId } from '@/app/actions/auth';
 import { redirect } from 'next/navigation';
 import { StudentTable } from './student-table';
 import { Button } from '@/components/ui/button';
 import { UserPlus } from 'lucide-react';
 import Link from 'next/link';
-import type { Student, Profile } from '@/types/database';
+import type { Student } from '@/types/database';
 
 async function getOtherTrainers(currentTrainerId: string) {
-    const supabase = await createClient();
-    const { data } = await supabase
+    const admin = createAdminClient();
+    const { data } = await admin
         .from('trainers')
         .select('id, profile:profiles!inner(full_name)')
         .eq('is_active', true)
         .neq('id', currentTrainerId)
         .order('created_at');
-    // Supabase returns profile as object when using !inner
     return (data || []).map((t: any) => ({
         id: t.id as string,
         profile: { full_name: (Array.isArray(t.profile) ? t.profile[0]?.full_name : t.profile?.full_name) || '' },
