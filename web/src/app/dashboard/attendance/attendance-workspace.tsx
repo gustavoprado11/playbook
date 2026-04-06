@@ -599,7 +599,7 @@ function SpreadsheetGrid({
                                 <div>
                                     <p className="text-xs font-semibold text-emerald-700">{day.label}</p>
                                     <p className="mt-1 text-lg font-semibold text-zinc-900">
-                                        {format(parseISO(day.isoDate), "dd 'de' MMM", { locale: ptBR })}
+                                        {format(new Date(day.isoDate + 'T12:00:00'), "dd 'de' MMM", { locale: ptBR })}
                                     </p>
                                 </div>
                                 <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] font-medium text-zinc-400">
@@ -853,7 +853,7 @@ function MobileAgendaStack({
                                 <div>
                                     <p className="text-xs font-semibold text-emerald-700">{day.label}</p>
                                     <h3 className="mt-1 text-lg font-semibold text-zinc-900">
-                                        {format(parseISO(day.isoDate), "dd 'de' MMM", { locale: ptBR })}
+                                        {format(new Date(day.isoDate + 'T12:00:00'), "dd 'de' MMM", { locale: ptBR })}
                                     </h3>
                                 </div>
                                 <button

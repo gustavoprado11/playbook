@@ -23,6 +23,7 @@ import {
     UtensilsCrossed,
     Activity,
     Home,
+    Contact,
 } from 'lucide-react';
 import { useState } from 'react';
 
@@ -48,7 +49,7 @@ export function Sidebar({ role, userName, professionType }: SidebarProps) {
     const managerActiveLinks: NavItem[] = [
         { href: '/dashboard/manager', label: 'Visão Geral', icon: LayoutDashboard },
         { href: '/dashboard/manager/team', label: 'Equipe', icon: Users },
-        { href: '/dashboard/manager/students', label: 'Alunos', icon: Users },
+        { href: '/dashboard/manager/students', label: 'Alunos', icon: Contact },
         { href: '/dashboard/manager/attendance', label: 'Agenda', icon: Clock },
         { href: '/dashboard/manager/results/types', label: 'Gestão de Resultados', icon: TrendingUp },
         { href: '/dashboard/manager/rules', label: 'Política de Incentivos', icon: CircleDollarSign },
@@ -56,7 +57,7 @@ export function Sidebar({ role, userName, professionType }: SidebarProps) {
 
     const trainerActiveLinks: NavItem[] = [
         { href: '/dashboard/trainer', label: 'Meu Desempenho', icon: LayoutDashboard },
-        { href: '/dashboard/trainer/students', label: 'Meus Alunos', icon: Users },
+        { href: '/dashboard/trainer/students', label: 'Meus Alunos', icon: Contact },
         { href: '/dashboard/trainer/attendance', label: 'Agenda', icon: Clock },
         { href: '/dashboard/trainer/results/types', label: 'Protocolos', icon: TrendingUp },
     ];
