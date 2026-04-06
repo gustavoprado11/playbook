@@ -145,7 +145,8 @@ export async function createTrainer(formData: FormData) {
         }
 
         revalidatePath('/dashboard/manager/trainers');
-        redirect('/dashboard/manager/trainers');
+        revalidatePath('/dashboard/manager/team');
+        redirect('/dashboard/manager/team');
     } catch (error) {
         // Re-throw redirect exceptions (Next.js uses exceptions for flow control)
         if (error instanceof Error && error.message === 'NEXT_REDIRECT') {
@@ -230,6 +231,7 @@ export async function updateTrainer(trainerId: string, data: { full_name?: strin
     }
 
     revalidatePath('/dashboard/manager/trainers');
+    revalidatePath('/dashboard/manager/team');
     return { success: true };
 }
 
@@ -292,6 +294,7 @@ export async function toggleTrainerStatus(trainerId: string, isActive: boolean) 
     }
 
     revalidatePath('/dashboard/manager/trainers');
+    revalidatePath('/dashboard/manager/team');
     return { success: true };
 }
 
@@ -576,6 +579,100 @@ export async function trainerArchiveStudent(studentId: string) {
     revalidatePath('/dashboard/trainer/students');
     revalidatePath('/dashboard/trainer/attendance');
     revalidatePath('/dashboard/manager/attendance');
+    return { success: true };
+}
+
+// =====================================================
+// TRAINER: CHANGE STUDENT STATUS (PAUSE / CANCEL)
+// =====================================================
+
+export async function trainerUpdateStudentStatus(
+    studentId: string,
+    newStatus: 'active' | 'paused' | 'cancelled'
+) {
+    const profile = await getProfile();
+    if (!profile || profile.role !== 'trainer') {
+        throw new Error('Não autorizado');
+    }
+
+    const trainerId = await getTrainerId();
+    if (!trainerId) {
+        throw new Error('Perfil de treinador não encontrado');
+    }
+
+    const supabase = await createClient();
+
+    // Verify student belongs to this trainer
+    const { data: student, error: fetchError } = await supabase
+        .from('students')
+        .select('id, trainer_id, full_name, status')
+        .eq('id', studentId)
+        .single();
+
+    if (fetchError || !student) {
+        throw new Error('Aluno não encontrado');
+    }
+
+    if (student.trainer_id !== trainerId) {
+        throw new Error('Você só pode alterar alunos da sua carteira');
+    }
+
+    if (student.status === newStatus) {
+        throw new Error('O aluno já está com esse status');
+    }
+
+    const today = new Date().toISOString().split('T')[0];
+
+    // Build update payload
+    const updates: Record<string, any> = { status: newStatus };
+    if (newStatus === 'cancelled') {
+        updates.end_date = today;
+    }
+
+    // 1. Update student status
+    const { error: updateError } = await supabase
+        .from('students')
+        .update(updates)
+        .eq('id', studentId);
+
+    if (updateError) {
+        throw new Error(`Erro ao alterar status: ${updateError.message}`);
+    }
+
+    // 2. Log event in student_events (essential for snapshot retention calculation)
+    const { error: eventError } = await supabase
+        .from('student_events')
+        .insert({
+            student_id: studentId,
+            event_type: 'status_change',
+            old_value: { status: student.status },
+            new_value: { status: newStatus },
+            event_date: today,
+            created_by: profile.id,
+        });
+
+    if (eventError) {
+        console.error('Error logging status change event:', eventError);
+    }
+
+    // 3. Log trainer activity
+    const admin = createAdminClient();
+    try {
+        await admin.from('trainer_activity_log').insert({
+            trainer_id: trainerId,
+            activity_type: 'student_status_update',
+            metadata: {
+                student_id: studentId,
+                student_name: student.full_name,
+                old_status: student.status,
+                new_status: newStatus,
+            },
+        });
+    } catch {
+        // Silent failure for activity log
+    }
+
+    revalidatePath('/dashboard/trainer/students');
     return { success: true };
 }
 

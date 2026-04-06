@@ -39,7 +39,7 @@ export default async function DashboardLayout({
 
     return (
         <div className="min-h-screen bg-zinc-50">
-            <Sidebar role={profile.role} userName={profile.full_name} />
+            <Sidebar role={profile.role} userName={profile.full_name} professionType={profile.profession_type} />
             <main className="lg:pl-64">
                 <div className="p-6 pt-20 lg:pt-6">
                     {children}

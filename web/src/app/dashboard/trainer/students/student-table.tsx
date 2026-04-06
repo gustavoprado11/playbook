@@ -42,6 +42,7 @@ import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
+    DropdownMenuLabel,
     DropdownMenuSeparator,
     DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu';
@@ -58,11 +59,15 @@ import {
     ArrowUpDown,
     Archive,
     ArrowRightLeft,
+    RefreshCcw,
+    UserX,
+    UserCheck,
 } from 'lucide-react';
 import Link from 'next/link';
-import { trainerArchiveStudent, trainerTransferStudent } from '@/app/actions/manager';
+import { trainerArchiveStudent, trainerTransferStudent, trainerUpdateStudentStatus } from '@/app/actions/manager';
 import type { Profile } from '@/types/database';
 import type { Student } from '@/types/database';
+import { TeamBadges } from '@/components/team-badges';
 import { format, addDays, differenceInDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -71,8 +76,14 @@ interface TrainerOption {
     profile: Pick<Profile, 'full_name'>;
 }
 
+interface ExtendedStudent extends Student {
+    professionals?: Array<{
+        professional: { profession_type: string; profile: { full_name: string } };
+    }>;
+}
+
 interface StudentTableProps {
-    students: Student[];
+    students: ExtendedStudent[];
     assessmentMap: Map<string, string>; // studentId -> date
     trainers?: TrainerOption[];
 }
@@ -94,12 +105,12 @@ export function StudentTable({ students, assessmentMap, trainers = [] }: Student
     const today = new Date();
     const windowDays = 60;
 
-    // Helper to calculate student status
-    const getStudentStatus = (student: Student) => {
+    // Helper to calculate assessment status
+    const getStudentAssessmentStatus = (student: Student) => {
         const lastDateStr = assessmentMap.get(student.id);
         const lastDate = lastDateStr ? new Date(lastDateStr) : null;
 
-        let status: 'late' | 'on_time' | 'due_soon' = 'late';
+        let assessmentStatus: 'late' | 'on_time' | 'due_soon' = 'late';
         let daysDiff = 0;
         let nextDueDate = addDays(today, -1); // Default to past
 
@@ -109,32 +120,32 @@ export function StudentTable({ students, assessmentMap, trainers = [] }: Student
             const daysUntilDue = differenceInDays(nextDueDate, today);
 
             if (daysDiff > windowDays) {
-                status = 'late';
+                assessmentStatus = 'late';
             } else if (daysUntilDue <= 7) {
-                status = 'due_soon';
+                assessmentStatus = 'due_soon';
             } else {
-                status = 'on_time';
+                assessmentStatus = 'on_time';
             }
         } else {
-            status = 'late'; // Never assessed = late
+            assessmentStatus = 'late'; // Never assessed = late
             nextDueDate = today; // Due immediately
         }
 
-        return { status, lastDate, nextDueDate, daysDiff };
+        return { assessmentStatus, lastDate, nextDueDate, daysDiff };
     };
 
     // Filter and Sort
     const filteredStudents = useMemo(() => {
         return students
-            .map(s => ({ ...s, ...getStudentStatus(s) }))
+            .map(s => ({ ...s, ...getStudentAssessmentStatus(s) }))
             .filter(s => {
                 // Search
                 if (search && !s.full_name.toLowerCase().includes(search.toLowerCase())) return false;
 
                 // Filter
-                if (filter === 'late') return s.status === 'late';
-                if (filter === 'on_time') return s.status === 'on_time';
-                if (filter === 'due_soon') return s.status === 'due_soon'; // A subset of on_time/late technically, but here defined status
+                if (filter === 'late') return s.assessmentStatus === 'late';
+                if (filter === 'on_time') return s.assessmentStatus === 'on_time';
+                if (filter === 'due_soon') return s.assessmentStatus === 'due_soon';
 
                 return true;
             })
@@ -152,7 +163,7 @@ export function StudentTable({ students, assessmentMap, trainers = [] }: Student
                 if (sort === 'status') {
                     // Priority: Late > Due Soon > On Time
                     const priority = { late: 0, due_soon: 1, on_time: 2 };
-                    return (priority[a.status] - priority[b.status]) * dir;
+                    return (priority[a.assessmentStatus] - priority[b.assessmentStatus]) * dir;
                 }
                 return 0;
             });
@@ -160,12 +171,12 @@ export function StudentTable({ students, assessmentMap, trainers = [] }: Student
 
     // Stats
     const stats = useMemo(() => {
-        const processed = students.map(s => getStudentStatus(s));
+        const processed = students.map(s => getStudentAssessmentStatus(s));
         return {
             total: students.length,
-            onTime: processed.filter(s => s.status === 'on_time' || s.status === 'due_soon').length,
-            late: processed.filter(s => s.status === 'late').length,
-            dueSoon: processed.filter(s => s.status === 'due_soon').length
+            onTime: processed.filter(s => s.assessmentStatus === 'on_time' || s.assessmentStatus === 'due_soon').length,
+            late: processed.filter(s => s.assessmentStatus === 'late').length,
+            dueSoon: processed.filter(s => s.assessmentStatus === 'due_soon').length
         };
     }, [students, assessmentMap]);
 
@@ -177,6 +188,21 @@ export function StudentTable({ students, assessmentMap, trainers = [] }: Student
             setSortDirection('asc');
         }
     };
+
+    function handleStatusChange(studentId: string, studentName: string, newStatus: 'active' | 'paused' | 'cancelled') {
+        const statusLabels = { active: 'ativo', paused: 'pausado', cancelled: 'cancelado' };
+        if (!confirm(`Deseja alterar o status de ${studentName} para ${statusLabels[newStatus]}?`)) return;
+
+        startTransition(async () => {
+            try {
+                await trainerUpdateStudentStatus(studentId, newStatus);
+                toast.success(`Status de ${studentName} alterado para ${statusLabels[newStatus]}`);
+                router.refresh();
+            } catch (error) {
+                toast.error(error instanceof Error ? error.message : 'Erro ao alterar status');
+            }
+        });
+    }
 
     function handleArchive() {
         if (!archiveTarget) return;
@@ -296,13 +322,14 @@ export function StudentTable({ students, assessmentMap, trainers = [] }: Student
                                 </div>
                             </TableHead>
                             <TableHead>Próxima Ação</TableHead>
+                            <TableHead>Equipe</TableHead>
                             <TableHead className="w-[50px]"></TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
                         {filteredStudents.length === 0 ? (
                             <TableRow>
-                                <TableCell colSpan={5} className="text-center py-8 text-zinc-500">
+                                <TableCell colSpan={6} className="text-center py-8 text-zinc-500">
                                     Nenhum aluno encontrado com os filtros atuais.
                                 </TableCell>
                             </TableRow>
@@ -318,21 +345,31 @@ export function StudentTable({ students, assessmentMap, trainers = [] }: Student
                                         </div>
                                     </TableCell>
                                     <TableCell>
-                                        {student.status === 'late' && (
-                                            <span className="inline-flex items-center rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-800">
-                                                Em Atraso
-                                            </span>
-                                        )}
-                                        {student.status === 'due_soon' && (
-                                            <span className="inline-flex items-center rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-800">
-                                                Vence em breve
-                                            </span>
-                                        )}
-                                        {student.status === 'on_time' && (
-                                            <span className="inline-flex items-center rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-medium text-emerald-800">
-                                                Em Dia
-                                            </span>
-                                        )}
+                                        <div className="flex flex-col gap-1">
+                                            {student.status === 'paused' ? (
+                                                <span className="inline-flex items-center rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-800">
+                                                    Pausado
+                                                </span>
+                                            ) : (
+                                                <>
+                                                    {student.assessmentStatus === 'late' && (
+                                                        <span className="inline-flex items-center rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-800">
+                                                            Em Atraso
+                                                        </span>
+                                                    )}
+                                                    {student.assessmentStatus === 'due_soon' && (
+                                                        <span className="inline-flex items-center rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-800">
+                                                            Vence em breve
+                                                        </span>
+                                                    )}
+                                                    {student.assessmentStatus === 'on_time' && (
+                                                        <span className="inline-flex items-center rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-medium text-emerald-800">
+                                                            Em Dia
+                                                        </span>
+                                                    )}
+                                                </>
+                                            )}
+                                        </div>
                                     </TableCell>
                                     <TableCell>
                                         <div className="flex flex-col">
@@ -352,11 +389,21 @@ export function StudentTable({ students, assessmentMap, trainers = [] }: Student
                                         <div className="flex flex-col">
                                             <span className={cn(
                                                 "text-sm font-medium",
-                                                student.status === 'late' ? "text-red-600" : "text-zinc-700"
+                                                student.assessmentStatus === 'late' ? "text-red-600" : "text-zinc-700"
                                             )}>
                                                 Avaliar até {format(student.nextDueDate, "dd/MM", { locale: ptBR })}
                                             </span>
                                         </div>
+                                    </TableCell>
+                                    <TableCell>
+                                        <TeamBadges
+                                            professionals={(student.professionals || [])
+                                                .filter(p => p.professional)
+                                                .map(p => ({
+                                                    profession_type: p.professional.profession_type as any,
+                                                    name: p.professional.profile?.full_name,
+                                                }))}
+                                        />
                                     </TableCell>
                                     <TableCell>
                                         <DropdownMenu>
@@ -386,6 +433,35 @@ export function StudentTable({ students, assessmentMap, trainers = [] }: Student
                                                         Transferir aluno
                                                     </DropdownMenuItem>
                                                 )}
+
+                                                <DropdownMenuSeparator />
+                                                <DropdownMenuLabel>Alterar Status</DropdownMenuLabel>
+
+                                                {student.status !== 'active' && (
+                                                    <DropdownMenuItem
+                                                        onClick={() => handleStatusChange(student.id, student.full_name, 'active')}
+                                                    >
+                                                        <UserCheck className="mr-2 h-4 w-4 text-emerald-600" />
+                                                        Ativar
+                                                    </DropdownMenuItem>
+                                                )}
+                                                {student.status !== 'paused' && (
+                                                    <DropdownMenuItem
+                                                        onClick={() => handleStatusChange(student.id, student.full_name, 'paused')}
+                                                    >
+                                                        <RefreshCcw className="mr-2 h-4 w-4 text-amber-600" />
+                                                        Pausar
+                                                    </DropdownMenuItem>
+                                                )}
+                                                {student.status !== 'cancelled' && (
+                                                    <DropdownMenuItem
+                                                        onClick={() => handleStatusChange(student.id, student.full_name, 'cancelled')}
+                                                    >
+                                                        <UserX className="mr-2 h-4 w-4 text-red-600" />
+                                                        Cancelar
+                                                    </DropdownMenuItem>
+                                                )}
+
                                                 <DropdownMenuSeparator />
                                                 <DropdownMenuItem
                                                     onClick={() => setArchiveTarget({ id: student.id, name: student.full_name })}

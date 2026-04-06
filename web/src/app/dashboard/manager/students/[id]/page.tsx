@@ -5,11 +5,14 @@ import { processAssessmentHistory, getManagementStatus } from '@/lib/assessment-
 import { redirect } from 'next/navigation';
 import { ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { formatDate, cn } from '@/lib/utils';
 import { StudentHeader } from '@/app/dashboard/trainer/students/[id]/components/student-header';
 import { ProtocolTimeline } from '@/app/dashboard/trainer/students/[id]/components/protocol-timeline';
-import type { Profile, Trainer } from '@/types/database';
+import { ProfessionBadge } from '@/components/profession-badge';
+import { LinkProfessionalDialog } from '@/components/link-professional-dialog';
+import { UnlinkProfessionalButton } from './unlink-professional-button';
+import type { Profile, Trainer, ProfessionType } from '@/types/database';
 
 const originLabels: Record<string, string> = {
     organic: 'Orgânico',
@@ -49,13 +52,37 @@ export default async function ManagerStudentDetailPage({ params }: { params: Pro
         redirect('/dashboard/manager/students');
     }
 
-    const [protocols, assessments, referredByResult] = await Promise.all([
+    const [protocols, assessments, referredByResult, linkedProfessionalsResult, allProfessionalsResult] = await Promise.all([
         getProtocols(),
         getStudentAssessments(id),
         student.referred_by_trainer_id
             ? supabase.from('trainers').select('*, profile:profiles(*)').eq('id', student.referred_by_trainer_id).single()
             : Promise.resolve({ data: null }),
+        supabase
+            .from('student_professionals')
+            .select(`
+                *,
+                professional:professionals!professional_id(
+                    *,
+                    profile:profiles!profile_id(full_name, email)
+                )
+            `)
+            .eq('student_id', id)
+            .eq('status', 'active'),
+        supabase
+            .from('professionals')
+            .select('id, profession_type, is_active, profile:profiles!profile_id(*)')
+            .in('profession_type', ['nutritionist', 'physiotherapist'])
+            .eq('is_active', true),
     ]);
+
+    const linkedProfessionals = linkedProfessionalsResult.data || [];
+    const allProfessionals = (allProfessionalsResult.data || []).map((p: any) => ({
+        id: p.id as string,
+        profession_type: p.profession_type as ProfessionType,
+        is_active: p.is_active as boolean,
+        profile: (Array.isArray(p.profile) ? p.profile[0] : p.profile) as Profile,
+    }));
 
     const groups = processAssessmentHistory(assessments);
     const managementStatus = getManagementStatus(assessments);
@@ -112,6 +139,34 @@ export default async function ManagerStudentDetailPage({ params }: { params: Pro
                             )}
                         </div>
                     </div>
+                </CardContent>
+            </Card>
+
+            {/* Equipe de Acompanhamento */}
+            <Card className="bg-white border-zinc-200">
+                <CardHeader className="flex flex-row items-center justify-between">
+                    <CardTitle className="text-base">Equipe de Acompanhamento</CardTitle>
+                    <LinkProfessionalDialog studentId={id} professionals={allProfessionals} />
+                </CardHeader>
+                <CardContent>
+                    {linkedProfessionals.length === 0 ? (
+                        <p className="text-sm text-zinc-400">Nenhum profissional vinculado além do treinador.</p>
+                    ) : (
+                        <div className="space-y-2">
+                            {linkedProfessionals.map((lp: { id: string; started_at: string; professional: { id: string; profession_type: ProfessionType; profile: { full_name: string; email: string } } }) => (
+                                <div key={lp.id} className="flex items-center justify-between rounded-lg border border-zinc-100 p-3">
+                                    <div className="flex items-center gap-3">
+                                        <ProfessionBadge type={lp.professional.profession_type} />
+                                        <div>
+                                            <p className="text-sm font-medium text-zinc-900">{lp.professional.profile.full_name}</p>
+                                            <p className="text-xs text-zinc-400">Desde {formatDate(lp.started_at)}</p>
+                                        </div>
+                                    </div>
+                                    <UnlinkProfessionalButton studentId={id} professionalId={lp.professional.id} />
+                                </div>
+                            ))}
+                        </div>
+                    )}
                 </CardContent>
             </Card>
 

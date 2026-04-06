@@ -4,7 +4,7 @@ import { redirect } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { UserPlus } from 'lucide-react';
 import Link from 'next/link';
-import type { Student, Trainer, Profile } from '@/types/database';
+import type { Student, Trainer, Profile, ProfessionType } from '@/types/database';
 import { ManagerStudentTable } from './student-table';
 
 async function getStudents() {
@@ -12,7 +12,16 @@ async function getStudents() {
 
     const { data: students, error } = await supabase
         .from('students')
-        .select('*, trainer:trainers!students_trainer_id_fkey(*, profile:profiles(*))')
+        .select(`
+            *,
+            trainer:trainers!students_trainer_id_fkey(*, profile:profiles(*)),
+            professionals:student_professionals(
+                professional:professionals!professional_id(
+                    profession_type,
+                    profile:profiles!profile_id(full_name)
+                )
+            )
+        `)
         .order('created_at', { ascending: false });
 
     if (error) {
@@ -20,7 +29,12 @@ async function getStudents() {
         return [];
     }
 
-    return (students || []) as (Student & { trainer: Trainer & { profile: Profile } })[];
+    return (students || []) as (Student & {
+        trainer: Trainer & { profile: Profile };
+        professionals: Array<{
+            professional: { profession_type: ProfessionType; profile: { full_name: string } };
+        }>;
+    })[];
 }
 
 async function getTrainers() {

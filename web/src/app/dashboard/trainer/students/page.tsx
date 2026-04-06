@@ -28,13 +28,25 @@ async function getTrainerStudents(trainerId: string) {
 
     const { data: students } = await supabase
         .from('students')
-        .select('*')
+        .select(`
+            *,
+            professionals:student_professionals(
+                professional:professionals!professional_id(
+                    profession_type,
+                    profile:profiles!profile_id(full_name)
+                )
+            )
+        `)
         .eq('trainer_id', trainerId)
-        .eq('status', 'active')
+        .in('status', ['active', 'paused'])
         .eq('is_archived', false)
         .order('full_name');
 
-    return (students || []) as Student[];
+    return (students || []) as (Student & {
+        professionals?: Array<{
+            professional: { profession_type: string; profile: { full_name: string } };
+        }>;
+    })[];
 }
 
 

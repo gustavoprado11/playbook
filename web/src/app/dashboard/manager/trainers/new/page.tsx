@@ -43,7 +43,7 @@ export default function NewTrainerPage() {
     return (
         <div className="max-w-2xl mx-auto space-y-6">
             <div className="flex items-center gap-4">
-                <Link href="/dashboard/manager/trainers">
+                <Link href="/dashboard/manager/team">
                     <Button variant="ghost" size="icon">
                         <ArrowLeft className="h-5 w-5" />
                     </Button>
@@ -124,7 +124,7 @@ export default function NewTrainerPage() {
                         )}
 
                         <div className="flex gap-3 pt-4">
-                            <Link href="/dashboard/manager/trainers" className="flex-1">
+                            <Link href="/dashboard/manager/team" className="flex-1">
                                 <Button type="button" variant="outline" className="w-full">
                                     Cancelar
                                 </Button>

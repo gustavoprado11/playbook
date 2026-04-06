@@ -10,7 +10,6 @@ import {
     BarChart3,
     LayoutDashboard,
     Users,
-    UserCheck,
     Settings,
     LogOut,
     Menu,
@@ -21,12 +20,16 @@ import {
     FileText,
     Dumbbell,
     CircleDollarSign,
+    UtensilsCrossed,
+    Activity,
+    Home,
 } from 'lucide-react';
 import { useState } from 'react';
 
 interface SidebarProps {
-    role: 'manager' | 'trainer';
+    role: 'manager' | 'trainer' | 'professional';
     userName: string;
+    professionType?: string | null;
 }
 
 interface NavItem {
@@ -36,7 +39,7 @@ interface NavItem {
     disabled?: boolean;
 }
 
-export function Sidebar({ role, userName }: SidebarProps) {
+export function Sidebar({ role, userName, professionType }: SidebarProps) {
     const pathname = usePathname();
     const [mobileOpen, setMobileOpen] = useState(false);
     const [tooltipItem, setTooltipItem] = useState<string | null>(null);
@@ -44,7 +47,7 @@ export function Sidebar({ role, userName }: SidebarProps) {
     // Active features
     const managerActiveLinks: NavItem[] = [
         { href: '/dashboard/manager', label: 'Visão Geral', icon: LayoutDashboard },
-        { href: '/dashboard/manager/trainers', label: 'Treinadores', icon: UserCheck },
+        { href: '/dashboard/manager/team', label: 'Equipe', icon: Users },
         { href: '/dashboard/manager/students', label: 'Alunos', icon: Users },
         { href: '/dashboard/manager/attendance', label: 'Agenda', icon: Clock },
         { href: '/dashboard/manager/results/types', label: 'Gestão de Resultados', icon: TrendingUp },
@@ -58,6 +61,20 @@ export function Sidebar({ role, userName }: SidebarProps) {
         { href: '/dashboard/trainer/results/types', label: 'Protocolos', icon: TrendingUp },
     ];
 
+    const nutritionistActiveLinks: NavItem[] = [
+        { href: '/dashboard/nutritionist', label: 'Painel', icon: Home },
+        { href: '/dashboard/nutritionist/patients', label: 'Pacientes', icon: Users },
+        { href: '/dashboard/nutritionist/consultations', label: 'Consultas', icon: ClipboardList },
+        { href: '/dashboard/nutritionist/meal-plans', label: 'Planos Alimentares', icon: UtensilsCrossed },
+    ];
+
+    const physiotherapistActiveLinks: NavItem[] = [
+        { href: '/dashboard/physiotherapist', label: 'Painel', icon: Home },
+        { href: '/dashboard/physiotherapist/patients', label: 'Pacientes', icon: Users },
+        { href: '/dashboard/physiotherapist/sessions', label: 'Sessões', icon: Activity },
+        { href: '/dashboard/physiotherapist/treatment-plans', label: 'Protocolos', icon: FileText },
+    ];
+
     // Evolution items (disabled)
     const evolutionItems: NavItem[] = [
         { label: 'Performance do Aluno', icon: ClipboardList, disabled: true },
@@ -65,7 +82,27 @@ export function Sidebar({ role, userName }: SidebarProps) {
         { label: 'Relatórios', icon: FileText, disabled: true },
     ];
 
-    const activeLinks = role === 'manager' ? managerActiveLinks : trainerActiveLinks;
+    const getActiveLinks = () => {
+        if (role === 'manager') return managerActiveLinks;
+        if (role === 'trainer') return trainerActiveLinks;
+        if (role === 'professional') {
+            if (professionType === 'nutritionist') return nutritionistActiveLinks;
+            if (professionType === 'physiotherapist') return physiotherapistActiveLinks;
+        }
+        return trainerActiveLinks;
+    };
+
+    const activeLinks = getActiveLinks();
+
+    const getRoleLabel = () => {
+        if (role === 'manager') return 'Gestor';
+        if (role === 'trainer') return 'Treinador';
+        if (role === 'professional') {
+            if (professionType === 'nutritionist') return 'Nutricionista';
+            if (professionType === 'physiotherapist') return 'Fisioterapeuta';
+        }
+        return 'Profissional';
+    };
 
     return (
         <>
@@ -183,7 +220,7 @@ export function Sidebar({ role, userName }: SidebarProps) {
                 <div className="border-t border-zinc-200 p-4">
                     <div className="mb-3 px-3">
                         <p className="text-sm font-medium text-zinc-900">{userName}</p>
-                        <p className="text-xs text-zinc-500 capitalize">{role === 'manager' ? 'Gestor' : 'Treinador'}</p>
+                        <p className="text-xs text-zinc-500 capitalize">{getRoleLabel()}</p>
                     </div>
                     <form action={signOut}>
                         <Button variant="ghost" size="sm" className="w-full justify-start gap-2 text-zinc-600">

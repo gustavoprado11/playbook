@@ -54,12 +54,16 @@ import {
     ArrowUpDown,
 } from 'lucide-react';
 import Link from 'next/link';
-import type { Student, Trainer, Profile } from '@/types/database';
+import type { Student, Trainer, Profile, ProfessionType } from '@/types/database';
 import { updateStudent, archiveStudent, unarchiveStudent } from '@/app/actions/manager';
 import { EditStudentDialog } from './edit-student-dialog';
+import { TeamBadges } from '@/components/team-badges';
 
 interface ExtendedStudent extends Student {
     trainer?: Trainer & { profile?: Profile };
+    professionals?: Array<{
+        professional: { profession_type: ProfessionType; profile: { full_name: string } };
+    }>;
 }
 
 interface ManagerStudentTableProps {
@@ -255,6 +259,7 @@ export function ManagerStudentTable({ students, trainers }: ManagerStudentTableP
                                     <ArrowUpDown className="h-3 w-3" />
                                 </div>
                             </TableHead>
+                            <TableHead>Equipe</TableHead>
                             <TableHead className="text-center cursor-pointer hover:text-zinc-900" onClick={() => toggleSort('status')}>
                                 <div className="flex items-center justify-center gap-1">
                                     Status
@@ -273,7 +278,7 @@ export function ManagerStudentTable({ students, trainers }: ManagerStudentTableP
                     <TableBody>
                         {filteredStudents.length === 0 ? (
                             <TableRow>
-                                <TableCell colSpan={5} className="text-center py-8 text-zinc-500">
+                                <TableCell colSpan={6} className="text-center py-8 text-zinc-500">
                                     Nenhum aluno encontrado nesta visualização.
                                 </TableCell>
                             </TableRow>
@@ -295,6 +300,16 @@ export function ManagerStudentTable({ students, trainers }: ManagerStudentTableP
                                     </TableCell>
                                     <TableCell className="text-zinc-600">
                                         {student.trainer?.profile?.full_name || '-'}
+                                    </TableCell>
+                                    <TableCell>
+                                        <TeamBadges
+                                            professionals={(student.professionals || [])
+                                                .filter(p => p.professional)
+                                                .map(p => ({
+                                                    profession_type: p.professional.profession_type,
+                                                    name: p.professional.profile?.full_name,
+                                                }))}
+                                        />
                                     </TableCell>
                                     <TableCell className="text-center">
                                         <span className={cn(
