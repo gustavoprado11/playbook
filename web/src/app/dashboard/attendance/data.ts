@@ -1,7 +1,7 @@
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 import { getProfile, getTrainerId } from '@/app/actions/auth';
-import { buildWorkWeek, getWeekStart } from '@/lib/attendance';
+import { buildWorkWeek, getWeekStart, formatIsoDateLabel } from '@/lib/attendance';
 import { ensureWeekAgendaFromBase } from '@/lib/attendance-store';
 import type {
     AttendancePublicLink,
@@ -161,7 +161,7 @@ export async function getAttendancePageData(referenceDate?: string): Promise<Att
 
     return {
         role: profile.role,
-        weekLabel: `${weekDays[0].date.toLocaleDateString('pt-BR')} - ${weekDays[weekDays.length - 1].date.toLocaleDateString('pt-BR')}`,
+        weekLabel: `${formatIsoDateLabel(weekDays[0].isoDate)} - ${formatIsoDateLabel(weekDays[weekDays.length - 1].isoDate)}`,
         weekStart,
         weekDays,
         students,
@@ -200,7 +200,7 @@ export async function getPublicAttendancePageData(
 
     return {
         role: 'manager',
-        weekLabel: `${weekDays[0].date.toLocaleDateString('pt-BR')} - ${weekDays[weekDays.length - 1].date.toLocaleDateString('pt-BR')}`,
+        weekLabel: `${formatIsoDateLabel(weekDays[0].isoDate)} - ${formatIsoDateLabel(weekDays[weekDays.length - 1].isoDate)}`,
         weekStart,
         weekDays,
         students,

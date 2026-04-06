@@ -22,6 +22,16 @@ export function buildWorkWeek(date: Date) {
   }));
 }
 
+/**
+ * Format an ISO date string (yyyy-MM-dd) as dd/MM/yyyy for labels.
+ * Avoids timezone issues by parsing the string directly instead of
+ * going through Date objects that shift across UTC boundaries.
+ */
+export function formatIsoDateLabel(isoDate: string) {
+  const [year, month, day] = isoDate.split('-');
+  return `${day}/${month}/${year}`;
+}
+
 export function formatTimeLabel(time: string) {
   return time.slice(0, 5);
 }
