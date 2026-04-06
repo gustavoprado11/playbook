@@ -1,5 +1,6 @@
 import { getProfile } from '@/app/actions/auth';
 import { getProtocols, getStudentAssessments } from '@/app/actions/results';
+import { getStudentIntegratedView } from '@/app/actions/integrated';
 import { createClient } from '@/lib/supabase/server';
 import { processAssessmentHistory, getManagementStatus } from '@/lib/assessment-logic';
 import { redirect } from 'next/navigation';
@@ -12,6 +13,7 @@ import { ProtocolTimeline } from '@/app/dashboard/trainer/students/[id]/componen
 import { ProfessionBadge } from '@/components/profession-badge';
 import { LinkProfessionalDialog } from '@/components/link-professional-dialog';
 import { UnlinkProfessionalButton } from './unlink-professional-button';
+import { StudentDetailTabs } from '@/components/integrated/student-detail-tabs';
 import type { Profile, Trainer, ProfessionType } from '@/types/database';
 
 const originLabels: Record<string, string> = {
@@ -52,7 +54,7 @@ export default async function ManagerStudentDetailPage({ params }: { params: Pro
         redirect('/dashboard/manager/students');
     }
 
-    const [protocols, assessments, referredByResult, linkedProfessionalsResult, allProfessionalsResult] = await Promise.all([
+    const [protocols, assessments, referredByResult, linkedProfessionalsResult, allProfessionalsResult, integratedView] = await Promise.all([
         getProtocols(),
         getStudentAssessments(id),
         student.referred_by_trainer_id
@@ -74,6 +76,7 @@ export default async function ManagerStudentDetailPage({ params }: { params: Pro
             .select('id, profession_type, is_active, profile:profiles!profile_id(*)')
             .in('profession_type', ['nutritionist', 'physiotherapist'])
             .eq('is_active', true),
+        getStudentIntegratedView(id),
     ]);
 
     const linkedProfessionals = linkedProfessionalsResult.data || [];
@@ -91,57 +94,9 @@ export default async function ManagerStudentDetailPage({ params }: { params: Pro
     const trainer = student.trainer as (Trainer & { profile: Profile }) | null;
     const referredBy = referredByResult.data as (Trainer & { profile: Profile }) | null;
 
-    return (
-        <div className="space-y-8 pb-12">
-            {/* Top Nav */}
-            <div className="flex items-center gap-4">
-                <Link
-                    href="/dashboard/manager/students"
-                    className="p-2 hover:bg-zinc-100 rounded-full transition-colors"
-                >
-                    <ArrowLeft className="h-5 w-5 text-zinc-500" />
-                </Link>
-                <div>
-                    <h1 className="text-2xl font-bold text-zinc-900">Detalhes do Aluno</h1>
-                    <p className="text-zinc-500 text-sm">Visão completa de avaliações e evolução</p>
-                </div>
-            </div>
-
-            {/* Student Info Card */}
-            <Card className="bg-white border-zinc-200">
-                <CardContent className="p-6">
-                    <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-                        <div className="space-y-3">
-                            <div className="flex items-center gap-3">
-                                <h2 className="text-xl font-bold text-zinc-900">{student.full_name}</h2>
-                                <span className={cn(
-                                    'inline-flex rounded-full px-2 py-0.5 text-xs font-medium',
-                                    statusColors[student.status] || 'bg-zinc-100 text-zinc-600'
-                                )}>
-                                    {statusLabels[student.status] || student.status}
-                                </span>
-                                {student.is_archived && (
-                                    <span className="inline-flex rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-500">
-                                        Arquivado
-                                    </span>
-                                )}
-                            </div>
-                            <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm text-zinc-500">
-                                <span>Treinador: <strong className="text-zinc-700">{trainer?.profile?.full_name || '-'}</strong></span>
-                                <span>Início: <strong className="text-zinc-700">{formatDate(student.start_date)}</strong></span>
-                                <span>Origem: <strong className="text-zinc-700">{originLabels[student.origin] || student.origin}</strong></span>
-                                {student.origin === 'referral' && referredBy && (
-                                    <span>Indicado por: <strong className="text-zinc-700">{referredBy.profile?.full_name}</strong></span>
-                                )}
-                            </div>
-                            {student.email && (
-                                <p className="text-sm text-zinc-400">{student.email}</p>
-                            )}
-                        </div>
-                    </div>
-                </CardContent>
-            </Card>
-
+    // Training tab content (current page content extracted)
+    const trainingContent = (
+        <div className="space-y-8">
             {/* Equipe de Acompanhamento */}
             <Card className="bg-white border-zinc-200">
                 <CardHeader className="flex flex-row items-center justify-between">
@@ -197,6 +152,65 @@ export default async function ManagerStudentDetailPage({ params }: { params: Pro
                     ))}
                 </div>
             )}
+        </div>
+    );
+
+    return (
+        <div className="space-y-8 pb-12">
+            {/* Top Nav */}
+            <div className="flex items-center gap-4">
+                <Link
+                    href="/dashboard/manager/students"
+                    className="p-2 hover:bg-zinc-100 rounded-full transition-colors"
+                >
+                    <ArrowLeft className="h-5 w-5 text-zinc-500" />
+                </Link>
+                <div>
+                    <h1 className="text-2xl font-bold text-zinc-900">Detalhes do Aluno</h1>
+                    <p className="text-zinc-500 text-sm">Visão completa de avaliações e evolução</p>
+                </div>
+            </div>
+
+            {/* Student Info Card */}
+            <Card className="bg-white border-zinc-200">
+                <CardContent className="p-6">
+                    <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                        <div className="space-y-3">
+                            <div className="flex items-center gap-3">
+                                <h2 className="text-xl font-bold text-zinc-900">{student.full_name}</h2>
+                                <span className={cn(
+                                    'inline-flex rounded-full px-2 py-0.5 text-xs font-medium',
+                                    statusColors[student.status] || 'bg-zinc-100 text-zinc-600'
+                                )}>
+                                    {statusLabels[student.status] || student.status}
+                                </span>
+                                {student.is_archived && (
+                                    <span className="inline-flex rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-500">
+                                        Arquivado
+                                    </span>
+                                )}
+                            </div>
+                            <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm text-zinc-500">
+                                <span>Treinador: <strong className="text-zinc-700">{trainer?.profile?.full_name || '-'}</strong></span>
+                                <span>Início: <strong className="text-zinc-700">{formatDate(student.start_date)}</strong></span>
+                                <span>Origem: <strong className="text-zinc-700">{originLabels[student.origin] || student.origin}</strong></span>
+                                {student.origin === 'referral' && referredBy && (
+                                    <span>Indicado por: <strong className="text-zinc-700">{referredBy.profile?.full_name}</strong></span>
+                                )}
+                            </div>
+                            {student.email && (
+                                <p className="text-sm text-zinc-400">{student.email}</p>
+                            )}
+                        </div>
+                    </div>
+                </CardContent>
+            </Card>
+
+            {/* Tabs */}
+            <StudentDetailTabs
+                trainingContent={trainingContent}
+                integratedView={integratedView}
+            />
         </div>
     );
 }

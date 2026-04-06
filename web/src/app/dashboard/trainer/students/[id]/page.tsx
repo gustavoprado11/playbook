@@ -1,4 +1,5 @@
 import { getProtocols, getStudentAssessments } from '@/app/actions/results';
+import { getStudentIntegratedView } from '@/app/actions/integrated';
 import { createClient } from '@/lib/supabase/server';
 import { ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
@@ -8,6 +9,7 @@ import { processAssessmentHistory, getManagementStatus } from '@/lib/assessment-
 import { ArchiveStudentButton } from './components/archive-student-button';
 import { StudentHeader } from './components/student-header';
 import { ProtocolTimeline } from './components/protocol-timeline';
+import { StudentDetailTabs } from '@/components/integrated/student-detail-tabs';
 
 export default async function StudentDetailsPage({ params }: { params: Promise<{ id: string }> }) {
     const { id } = await params;
@@ -24,10 +26,11 @@ export default async function StudentDetailsPage({ params }: { params: Promise<{
         redirect('/dashboard/trainer/students');
     }
 
-    // Parallel fetch: Protocols (for form) and Assessment History
-    const [protocols, assessments] = await Promise.all([
+    // Parallel fetch
+    const [protocols, assessments, integratedView] = await Promise.all([
         getProtocols(),
-        getStudentAssessments(id)
+        getStudentAssessments(id),
+        getStudentIntegratedView(id),
     ]);
 
     // Process Data
@@ -35,30 +38,9 @@ export default async function StudentDetailsPage({ params }: { params: Promise<{
     const managementStatus = getManagementStatus(assessments);
     const lastAssessmentDate = assessments.length > 0 ? assessments[0].performed_at : undefined;
 
-    return (
-        <div className="space-y-8 pb-12">
-            {/* Top Nav */}
-            <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                    <Link
-                        href="/dashboard/trainer/students"
-                        className="p-2 hover:bg-zinc-100 rounded-full transition-colors"
-                    >
-                        <ArrowLeft className="h-5 w-5 text-zinc-500" />
-                    </Link>
-                    <div>
-                        <h1 className="text-2xl font-bold text-zinc-900">Análise de Evolução</h1>
-                        <p className="text-zinc-500 text-sm">
-                            Acompanhamento detalhado de performance
-                        </p>
-                    </div>
-                </div>
-                <div className="flex items-center gap-2">
-                    <ArchiveStudentButton studentId={student.id} studentName={student.full_name} />
-                    <NewResultDialog studentId={student.id} protocols={protocols} />
-                </div>
-            </div>
-
+    // Training tab content
+    const trainingContent = (
+        <div className="space-y-8">
             {/* Header Summary */}
             <StudentHeader
                 student={student}
@@ -85,6 +67,38 @@ export default async function StudentDetailsPage({ params }: { params: Promise<{
                     ))}
                 </div>
             )}
+        </div>
+    );
+
+    return (
+        <div className="space-y-8 pb-12">
+            {/* Top Nav */}
+            <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                    <Link
+                        href="/dashboard/trainer/students"
+                        className="p-2 hover:bg-zinc-100 rounded-full transition-colors"
+                    >
+                        <ArrowLeft className="h-5 w-5 text-zinc-500" />
+                    </Link>
+                    <div>
+                        <h1 className="text-2xl font-bold text-zinc-900">Análise de Evolução</h1>
+                        <p className="text-zinc-500 text-sm">
+                            Acompanhamento detalhado de performance
+                        </p>
+                    </div>
+                </div>
+                <div className="flex items-center gap-2">
+                    <ArchiveStudentButton studentId={student.id} studentName={student.full_name} />
+                    <NewResultDialog studentId={student.id} protocols={protocols} />
+                </div>
+            </div>
+
+            {/* Tabs */}
+            <StudentDetailTabs
+                trainingContent={trainingContent}
+                integratedView={integratedView}
+            />
         </div>
     );
 }
