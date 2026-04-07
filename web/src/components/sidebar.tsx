@@ -7,7 +7,6 @@ import { cn } from '@/lib/utils';
 import { signOut } from '@/app/actions/auth';
 import { Button } from '@/components/ui/button';
 import {
-    BarChart3,
     LayoutDashboard,
     Users,
     Settings,
@@ -53,6 +52,7 @@ export function Sidebar({ role, userName, professionType }: SidebarProps) {
         { href: '/dashboard/manager/attendance', label: 'Agenda', icon: Clock },
         { href: '/dashboard/manager/results/types', label: 'Gestão de Resultados', icon: TrendingUp },
         { href: '/dashboard/manager/rules', label: 'Política de Incentivos', icon: CircleDollarSign },
+        { href: '/dashboard/manager/reports', label: 'Relatórios', icon: FileText },
     ];
 
     const trainerActiveLinks: NavItem[] = [
@@ -78,9 +78,7 @@ export function Sidebar({ role, userName, professionType }: SidebarProps) {
 
     // Evolution items (disabled)
     const evolutionItems: NavItem[] = [
-        { label: 'Performance do Aluno', icon: ClipboardList, disabled: true },
         { label: 'Prescrição de Treino', icon: Dumbbell, disabled: true },
-        { label: 'Relatórios', icon: FileText, disabled: true },
     ];
 
     const getActiveLinks = () => {
@@ -147,7 +145,8 @@ export function Sidebar({ role, userName, professionType }: SidebarProps) {
                     <div className="space-y-1">
                         {activeLinks.map((link) => {
                             const Icon = link.icon;
-                            const isActive = pathname === link.href;
+                            const isActive = pathname === link.href
+                                || (link.href === '/dashboard/manager/reports' && pathname.startsWith('/dashboard/manager/kpis'));
 
                             return (
                                 <Link

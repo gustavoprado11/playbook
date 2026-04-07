@@ -3,6 +3,8 @@ import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Users, ClipboardList, UtensilsCrossed, Calendar } from 'lucide-react';
+import { getDashboardAlerts } from '@/app/actions/alerts';
+import { DashboardAlerts } from '@/components/dashboard-alerts';
 
 export default async function NutritionistDashboardPage() {
     const profile = await getProfile();
@@ -28,7 +30,7 @@ export default async function NutritionistDashboardPage() {
     const now = new Date();
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
 
-    const [patientsResult, consultationsResult, mealPlansResult] = await Promise.all([
+    const [patientsResult, consultationsResult, mealPlansResult, alerts] = await Promise.all([
         supabase
             .from('student_professionals')
             .select('id', { count: 'exact', head: true })
@@ -44,6 +46,7 @@ export default async function NutritionistDashboardPage() {
             .select('id', { count: 'exact', head: true })
             .eq('professional_id', professional.id)
             .eq('is_active', true),
+        getDashboardAlerts(),
     ]);
 
     const stats = [
@@ -70,6 +73,8 @@ export default async function NutritionistDashboardPage() {
                 <h1 className="text-2xl font-bold text-zinc-900">Painel do Nutricionista</h1>
                 <p className="mt-1 text-zinc-500">Bem-vindo(a), {profile.full_name}</p>
             </div>
+
+            <DashboardAlerts alerts={alerts} />
 
             <div className="grid gap-4 md:grid-cols-3">
                 {stats.map((stat) => {

@@ -11,6 +11,8 @@ import type { TrainerActivitySummary } from '@/types/database';
 import { TrainerActivityPanel } from './trainer-activity-panel';
 import { GenerateSnapshotButton } from './generate-snapshot-button';
 import { PerformanceTable } from './performance-table';
+import { getDashboardAlerts } from '@/app/actions/alerts';
+import { DashboardAlerts } from '@/components/dashboard-alerts';
 
 async function getBasicStats() {
     const supabase = await createClient();
@@ -56,10 +58,11 @@ export default async function ManagerDashboardPage() {
     }
 
     const referenceMonth = getFirstDayOfMonth();
-    const [basicStats, activity, liveData] = await Promise.all([
+    const [basicStats, activity, liveData, alerts] = await Promise.all([
         getBasicStats(),
         getTrainerActivity(),
         calculateLiveKPIs(referenceMonth),
+        getDashboardAlerts(),
     ]);
 
     return (
@@ -133,6 +136,9 @@ export default async function ManagerDashboardPage() {
                     </CardContent>
                 </Card>
             </div>
+
+            {/* Dashboard Alerts */}
+            <DashboardAlerts alerts={alerts} />
 
             {/* No active rule banner */}
             {!liveData.hasActiveRule && (

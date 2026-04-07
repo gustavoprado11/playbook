@@ -5,6 +5,8 @@ import { KPICard } from '@/components/kpi-card';
 import { RewardCard } from '@/components/reward-card';
 import { formatPercent, formatMonthYear, getFirstDayOfMonth } from '@/lib/utils';
 import type { TrainerDashboardData } from '@/types/database';
+import { getDashboardAlerts } from '@/app/actions/alerts';
+import { DashboardAlerts } from '@/components/dashboard-alerts';
 
 async function getTrainerDashboardData(trainerId: string, referenceMonth: string): Promise<TrainerDashboardData | null> {
     const supabase = await createClient();
@@ -39,7 +41,10 @@ export default async function TrainerDashboardPage() {
     }
 
     const referenceMonth = getFirstDayOfMonth();
-    const data = await getTrainerDashboardData(trainerId, referenceMonth);
+    const [data, alerts] = await Promise.all([
+        getTrainerDashboardData(trainerId, referenceMonth),
+        getDashboardAlerts(),
+    ]);
 
     if (!data) {
         return (
@@ -77,6 +82,9 @@ export default async function TrainerDashboardPage() {
                 totalKpis={3}
                 isFinalized={data.is_finalized}
             />
+
+            {/* Dashboard Alerts */}
+            <DashboardAlerts alerts={alerts} />
 
             {/* KPI Cards */}
             <div className="grid gap-6 md:grid-cols-3">
