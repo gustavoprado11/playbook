@@ -10,6 +10,13 @@ import { ArchiveStudentButton } from './components/archive-student-button';
 import { StudentHeader } from './components/student-header';
 import { ProtocolTimeline } from './components/protocol-timeline';
 import { StudentDetailTabs } from '@/components/integrated/student-detail-tabs';
+import { getProfile } from '@/app/actions/auth';
+import { getActiveClearances } from '@/app/actions/clearances';
+import { getSharedNotes } from '@/app/actions/shared-notes';
+import { getCoProfessionals } from '@/app/actions/referrals';
+import { ClearanceBanner } from '@/components/clearances/clearance-banner';
+import { SharedNotesPanel } from '@/components/shared-notes/shared-notes-panel';
+import { NewReferralDialog } from '@/components/referrals/new-referral-dialog';
 
 export default async function StudentDetailsPage({ params }: { params: Promise<{ id: string }> }) {
     const { id } = await params;
@@ -27,10 +34,14 @@ export default async function StudentDetailsPage({ params }: { params: Promise<{
     }
 
     // Parallel fetch
-    const [protocols, assessments, integratedView] = await Promise.all([
+    const [protocols, assessments, integratedView, activeClearances, sharedNotes, coProfessionals, profile] = await Promise.all([
         getProtocols(),
         getStudentAssessments(id),
         getStudentIntegratedView(id),
+        getActiveClearances(id),
+        getSharedNotes(id),
+        getCoProfessionals(id),
+        getProfile(),
     ]);
 
     // Process Data
@@ -89,16 +100,26 @@ export default async function StudentDetailsPage({ params }: { params: Promise<{
                     </div>
                 </div>
                 <div className="flex items-center gap-2">
+                    <NewReferralDialog studentId={student.id} studentName={student.full_name} coProfessionals={coProfessionals} />
                     <ArchiveStudentButton studentId={student.id} studentName={student.full_name} />
                     <NewResultDialog studentId={student.id} protocols={protocols} />
                 </div>
             </div>
+
+            {/* Restrições clínicas ativas */}
+            <ClearanceBanner clearances={activeClearances} />
 
             {/* Tabs */}
             <StudentDetailTabs
                 trainingContent={trainingContent}
                 integratedView={integratedView}
             />
+
+            {/* Notas compartilhadas */}
+            <div>
+                <h2 className="mb-3 text-lg font-semibold text-zinc-900">Notas compartilhadas</h2>
+                <SharedNotesPanel studentId={student.id} notes={sharedNotes} currentProfileId={profile?.id ?? ''} />
+            </div>
         </div>
     );
 }

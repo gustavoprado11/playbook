@@ -540,6 +540,106 @@ export interface CreateProfessionalInput {
     notes?: string;
 }
 
+// === FASE 3: COMUNICAÇÃO INTERDISCIPLINAR ===
+
+export type ReferralType = 'referral' | 'request' | 'alert' | 'clearance';
+export type ReferralPriority = 'low' | 'normal' | 'high';
+export type ReferralStatus = 'pending' | 'accepted' | 'completed' | 'declined';
+
+export interface ReferralParticipant {
+    id: string;
+    profession_type: ProfessionType;
+    full_name: string;
+}
+
+export interface ReferralReply {
+    id: string;
+    referral_id: string;
+    author_professional_id: string;
+    body: string;
+    created_at: string;
+    author?: { full_name: string; profession_type: ProfessionType };
+}
+
+export interface InterdisciplinaryReferral {
+    id: string;
+    student_id: string;
+    from_professional_id: string;
+    to_professional_id: string;
+    type: ReferralType;
+    priority: ReferralPriority;
+    subject: string;
+    body: string | null;
+    context_ref: { table: string; id: string } | null;
+    status: ReferralStatus;
+    created_at: string;
+    updated_at: string;
+    resolved_at: string | null;
+    // Joined fields
+    student?: { id: string; full_name: string };
+    from_professional?: ReferralParticipant;
+    to_professional?: ReferralParticipant;
+    replies?: ReferralReply[];
+    reply_count?: number;
+}
+
+export type ClearanceLevel = 'cleared' | 'cleared_with_notes' | 'restricted' | 'contraindicated';
+export type ClearanceStatus = 'active' | 'lifted' | 'expired';
+
+export interface StudentClearance {
+    id: string;
+    student_id: string;
+    issued_by_professional_id: string;
+    clearance_level: ClearanceLevel;
+    body_region: string | null;
+    affected_movements: string[] | null;
+    description: string;
+    status: ClearanceStatus;
+    effective_from: string;
+    review_date: string | null;
+    lifted_at: string | null;
+    lifted_note: string | null;
+    created_at: string;
+    updated_at: string;
+    issued_by?: { full_name: string; profession_type: ProfessionType };
+}
+
+export type SharedNoteCategory = 'general' | 'goal' | 'behavior' | 'logistics' | 'health';
+
+export interface StudentSharedNote {
+    id: string;
+    student_id: string;
+    author_professional_id: string | null;
+    author_profile_id: string | null;
+    category: SharedNoteCategory;
+    body: string;
+    is_pinned: boolean;
+    created_at: string;
+    updated_at: string;
+    author?: { full_name: string; profession_type: ProfessionType | null; role: string };
+}
+
+export type NotificationType =
+    | 'referral_received'
+    | 'referral_replied'
+    | 'referral_status_changed'
+    | 'clearance_issued'
+    | 'shared_note_added';
+
+export interface AppNotification {
+    id: string;
+    recipient_profile_id: string;
+    type: NotificationType;
+    title: string;
+    body: string | null;
+    link: string | null;
+    source_table: string | null;
+    source_id: string | null;
+    is_read: boolean;
+    created_at: string;
+    read_at: string | null;
+}
+
 // === MÓDULO NUTRIÇÃO ===
 
 export type NutritionConsultationType = 'initial_assessment' | 'follow_up' | 'reassessment';

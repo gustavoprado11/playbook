@@ -23,6 +23,7 @@ import {
     Activity,
     Home,
     Contact,
+    MessageSquare,
 } from 'lucide-react';
 import { useState } from 'react';
 
@@ -30,6 +31,7 @@ interface SidebarProps {
     role: 'manager' | 'trainer' | 'professional';
     userName: string;
     professionType?: string | null;
+    messagesCount?: number;
 }
 
 interface NavItem {
@@ -37,9 +39,11 @@ interface NavItem {
     label: string;
     icon: React.ComponentType<{ className?: string }>;
     disabled?: boolean;
+    badgeCount?: number;
 }
 
-export function Sidebar({ role, userName, professionType }: SidebarProps) {
+export function Sidebar({ role, userName, professionType, messagesCount = 0 }: SidebarProps) {
+    const messagesLink: NavItem = { href: '/dashboard/messages', label: 'Mensagens', icon: MessageSquare, badgeCount: messagesCount };
     const pathname = usePathname();
     const [mobileOpen, setMobileOpen] = useState(false);
     const [tooltipItem, setTooltipItem] = useState<string | null>(null);
@@ -53,6 +57,7 @@ export function Sidebar({ role, userName, professionType }: SidebarProps) {
         { href: '/dashboard/manager/results/types', label: 'Gestão de Resultados', icon: TrendingUp },
         { href: '/dashboard/manager/rules', label: 'Política de Incentivos', icon: CircleDollarSign },
         { href: '/dashboard/manager/reports', label: 'Relatórios', icon: FileText },
+        messagesLink,
     ];
 
     const trainerActiveLinks: NavItem[] = [
@@ -60,6 +65,7 @@ export function Sidebar({ role, userName, professionType }: SidebarProps) {
         { href: '/dashboard/trainer/students', label: 'Meus Alunos', icon: Contact },
         { href: '/dashboard/trainer/attendance', label: 'Agenda', icon: Clock },
         { href: '/dashboard/trainer/results/types', label: 'Protocolos', icon: TrendingUp },
+        messagesLink,
     ];
 
     const nutritionistActiveLinks: NavItem[] = [
@@ -67,6 +73,7 @@ export function Sidebar({ role, userName, professionType }: SidebarProps) {
         { href: '/dashboard/nutritionist/patients', label: 'Pacientes', icon: Users },
         { href: '/dashboard/nutritionist/consultations', label: 'Consultas', icon: ClipboardList },
         { href: '/dashboard/nutritionist/meal-plans', label: 'Planos Alimentares', icon: UtensilsCrossed },
+        messagesLink,
     ];
 
     const physiotherapistActiveLinks: NavItem[] = [
@@ -74,6 +81,7 @@ export function Sidebar({ role, userName, professionType }: SidebarProps) {
         { href: '/dashboard/physiotherapist/patients', label: 'Pacientes', icon: Users },
         { href: '/dashboard/physiotherapist/sessions', label: 'Sessões', icon: Activity },
         { href: '/dashboard/physiotherapist/treatment-plans', label: 'Protocolos', icon: FileText },
+        messagesLink,
     ];
 
     // Evolution items (disabled)
@@ -161,7 +169,12 @@ export function Sidebar({ role, userName, professionType }: SidebarProps) {
                                     )}
                                 >
                                     <Icon className="h-5 w-5" />
-                                    {link.label}
+                                    <span className="flex-1">{link.label}</span>
+                                    {!!link.badgeCount && link.badgeCount > 0 && (
+                                        <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 text-[10px] font-bold text-white">
+                                            {link.badgeCount > 9 ? '9+' : link.badgeCount}
+                                        </span>
+                                    )}
                                 </Link>
                             );
                         })}

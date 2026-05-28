@@ -1,6 +1,9 @@
 import { redirect } from 'next/navigation';
 import { getProfile } from '@/app/actions/auth';
 import { Sidebar } from '@/components/sidebar';
+import { NotificationBell } from '@/components/notifications/notification-bell';
+import { getNotifications, getUnreadCount } from '@/app/actions/notifications';
+import { getPendingReferralCount } from '@/app/actions/referrals';
 
 export default async function DashboardLayout({
     children,
@@ -37,11 +40,25 @@ export default async function DashboardLayout({
         redirect('/auth/error?reason=missing_profile');
     }
 
+    const [notifications, unreadCount, pendingReferrals] = await Promise.all([
+        getNotifications(20),
+        getUnreadCount(),
+        getPendingReferralCount(),
+    ]);
+
     return (
         <div className="min-h-screen bg-zinc-50">
-            <Sidebar role={profile.role} userName={profile.full_name} professionType={profile.profession_type} />
+            <Sidebar
+                role={profile.role}
+                userName={profile.full_name}
+                professionType={profile.profession_type}
+                messagesCount={pendingReferrals}
+            />
             <main className="lg:pl-64">
-                <div className="p-6 pt-20 lg:pt-6">
+                <header className="sticky top-0 z-30 flex h-14 items-center justify-end border-b border-zinc-200 bg-white/80 px-6 backdrop-blur">
+                    <NotificationBell initialNotifications={notifications} initialUnread={unreadCount} />
+                </header>
+                <div className="p-6">
                     {children}
                 </div>
             </main>

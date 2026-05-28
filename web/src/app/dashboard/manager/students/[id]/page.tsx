@@ -14,6 +14,10 @@ import { ProfessionBadge } from '@/components/profession-badge';
 import { LinkProfessionalDialog } from '@/components/link-professional-dialog';
 import { UnlinkProfessionalButton } from './unlink-professional-button';
 import { StudentDetailTabs } from '@/components/integrated/student-detail-tabs';
+import { getActiveClearances } from '@/app/actions/clearances';
+import { getSharedNotes } from '@/app/actions/shared-notes';
+import { ClearanceBanner } from '@/components/clearances/clearance-banner';
+import { SharedNotesPanel } from '@/components/shared-notes/shared-notes-panel';
 import type { Profile, Trainer, ProfessionType } from '@/types/database';
 
 const originLabels: Record<string, string> = {
@@ -77,6 +81,11 @@ export default async function ManagerStudentDetailPage({ params }: { params: Pro
             .in('profession_type', ['nutritionist', 'physiotherapist'])
             .eq('is_active', true),
         getStudentIntegratedView(id),
+    ]);
+
+    const [activeClearances, sharedNotes] = await Promise.all([
+        getActiveClearances(id),
+        getSharedNotes(id),
     ]);
 
     const linkedProfessionals = linkedProfessionalsResult.data || [];
@@ -206,11 +215,20 @@ export default async function ManagerStudentDetailPage({ params }: { params: Pro
                 </CardContent>
             </Card>
 
+            {/* Restrições clínicas ativas */}
+            <ClearanceBanner clearances={activeClearances} />
+
             {/* Tabs */}
             <StudentDetailTabs
                 trainingContent={trainingContent}
                 integratedView={integratedView}
             />
+
+            {/* Notas compartilhadas */}
+            <div>
+                <h2 className="mb-3 text-lg font-semibold text-zinc-900">Notas compartilhadas</h2>
+                <SharedNotesPanel studentId={id} notes={sharedNotes} currentProfileId={profile.id} />
+            </div>
         </div>
     );
 }
