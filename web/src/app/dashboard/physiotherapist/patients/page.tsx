@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/table';
 import { Users } from 'lucide-react';
 import Link from 'next/link';
+import { AddPatientDialog } from '@/components/patients/add-patient-dialog';
 
 export default async function PhysioPatientsPage() {
     const { data: patients, error } = await listMyPhysioPatients();
@@ -25,6 +26,7 @@ export default async function PhysioPatientsPage() {
                         {patients?.length || 0} paciente(s) ativo(s)
                     </p>
                 </div>
+                <AddPatientDialog />
             </div>
 
             {error && (

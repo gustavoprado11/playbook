@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Users } from 'lucide-react';
+import { AddPatientDialog } from '@/components/patients/add-patient-dialog';
 
 const statusLabels: Record<string, string> = {
     active: 'Ativo',
@@ -42,10 +43,11 @@ export default async function NutritionistPatientsPage() {
                 >
                     <ArrowLeft className="h-5 w-5 text-zinc-500" />
                 </Link>
-                <div>
+                <div className="flex-1">
                     <h1 className="text-2xl font-bold text-zinc-900">Meus Pacientes</h1>
                     <p className="text-zinc-500 text-sm">Lista de pacientes vinculados</p>
                 </div>
+                <AddPatientDialog />
             </div>
 
             {error || !patients || patients.length === 0 ? (

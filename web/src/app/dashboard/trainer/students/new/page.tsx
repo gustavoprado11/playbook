@@ -1,6 +1,7 @@
 import { getProfile, getTrainerId } from '@/app/actions/auth';
 import { redirect } from 'next/navigation';
 import { NewStudentForm } from '@/app/dashboard/manager/students/new/form';
+import { ClaimStudentSearch } from '@/components/patients/claim-student-search';
 
 export default async function NewTrainerStudentPage() {
     const profile = await getProfile();
@@ -17,6 +18,7 @@ export default async function NewTrainerStudentPage() {
 
     return (
         <div className="max-w-2xl mx-auto space-y-6">
+            <ClaimStudentSearch />
             <NewStudentForm
                 trainers={[]}
                 mode="trainer"

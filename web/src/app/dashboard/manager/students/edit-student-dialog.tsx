@@ -116,7 +116,7 @@ export function EditStudentDialog({ student, trainers, open, onOpenChange }: Edi
 
                     <div className="space-y-2">
                         <Label>Treinador responsável</Label>
-                        <Select name="trainer_id" defaultValue={student.trainer_id} required>
+                        <Select name="trainer_id" defaultValue={student.trainer_id ?? undefined} required>
                             <SelectTrigger>
                                 <SelectValue placeholder="Selecione..." />
                             </SelectTrigger>

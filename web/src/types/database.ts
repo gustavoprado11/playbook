@@ -66,7 +66,7 @@ export interface Student {
   full_name: string;
   email: string | null;
   phone: string | null;
-  trainer_id: string;
+  trainer_id: string | null;
   status: StudentStatus;
   origin: StudentOrigin;
   referred_by_trainer_id: string | null;
