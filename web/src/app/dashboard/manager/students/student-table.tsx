@@ -299,7 +299,11 @@ export function ManagerStudentTable({ students, trainers }: ManagerStudentTableP
                                         </div>
                                     </TableCell>
                                     <TableCell className="text-zinc-600">
-                                        {student.trainer?.profile?.full_name || '-'}
+                                        {student.trainer?.profile?.full_name || (
+                                            <span className="inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
+                                                Sem treinador
+                                            </span>
+                                        )}
                                     </TableCell>
                                     <TableCell>
                                         <TeamBadges
