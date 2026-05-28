@@ -1,7 +1,35 @@
 import { normalizeTimeInput } from '@/lib/attendance';
-import type { ScheduleParticipant } from '@/types/database';
+import type { AgendaKind, ScheduleParticipant } from '@/types/database';
 
 type SupabaseLike = any;
+
+export interface TableSet {
+    baseSlots: string;
+    baseEntries: string;
+    weekSlots: string;
+    weekEntries: string;
+    ownerCol: 'trainer_id' | 'professional_id';
+}
+
+export function tableset(agenda: AgendaKind = 'training'): TableSet {
+    if (agenda === 'physiotherapy') {
+        return {
+            baseSlots: 'physio_schedule_base_slots',
+            baseEntries: 'physio_schedule_base_entries',
+            weekSlots: 'physio_schedule_week_slots',
+            weekEntries: 'physio_schedule_week_entries',
+            ownerCol: 'professional_id',
+        };
+    }
+
+    return {
+        baseSlots: 'schedule_base_slots',
+        baseEntries: 'schedule_base_entries',
+        weekSlots: 'schedule_week_slots',
+        weekEntries: 'schedule_week_entries',
+        ownerCol: 'trainer_id',
+    };
+}
 
 export function normalizeParticipants(entries: ScheduleParticipant[], includeStatus = false) {
     return entries
@@ -30,21 +58,25 @@ export function validateParticipants(entries: ScheduleParticipant[]) {
 export async function ensureWeekAgendaFromBase(
     supabase: SupabaseLike,
     weekStart: string,
-    trainerId?: string | null
+    ownerId?: string | null,
+    agenda: AgendaKind = 'training'
 ) {
+    const tables = tableset(agenda);
+    const ownerCol = tables.ownerCol;
+
     let baseSlotsQuery = supabase
-        .from('schedule_base_slots')
+        .from(tables.baseSlots)
         .select('*')
         .eq('is_active', true);
 
     let existingWeekSlotsQuery = supabase
-        .from('schedule_week_slots')
+        .from(tables.weekSlots)
         .select('*')
         .eq('week_start', weekStart);
 
-    if (trainerId) {
-        baseSlotsQuery = baseSlotsQuery.eq('trainer_id', trainerId);
-        existingWeekSlotsQuery = existingWeekSlotsQuery.eq('trainer_id', trainerId);
+    if (ownerId) {
+        baseSlotsQuery = baseSlotsQuery.eq(ownerCol, ownerId);
+        existingWeekSlotsQuery = existingWeekSlotsQuery.eq(ownerCol, ownerId);
     }
 
     const [{ data: baseSlots }, { data: existingWeekSlots }] = await Promise.all([
@@ -61,13 +93,13 @@ export async function ensureWeekAgendaFromBase(
     // Also track by composite key to avoid unique constraint violations
     const existingByKey = new Set(
         (existingWeekSlots || []).map((slot: any) =>
-            `${slot.trainer_id}|${slot.weekday}|${slot.start_time}`
+            `${slot[ownerCol]}|${slot.weekday}|${slot.start_time}`
         )
     );
 
     const missingBaseSlots = (baseSlots || []).filter((slot: any) =>
         !existingByBase.has(slot.id) &&
-        !existingByKey.has(`${slot.trainer_id}|${slot.weekday}|${slot.start_time}`)
+        !existingByKey.has(`${slot[ownerCol]}|${slot.weekday}|${slot.start_time}`)
     );
 
     if (missingBaseSlots.length === 0) {
@@ -75,10 +107,10 @@ export async function ensureWeekAgendaFromBase(
     }
 
     const { data: insertedSlots, error: insertSlotsError } = await supabase
-        .from('schedule_week_slots')
+        .from(tables.weekSlots)
         .insert(missingBaseSlots.map((slot: any) => ({
             base_slot_id: slot.id,
-            trainer_id: slot.trainer_id,
+            [ownerCol]: slot[ownerCol],
             week_start: weekStart,
             weekday: slot.weekday,
             start_time: slot.start_time,
@@ -94,7 +126,7 @@ export async function ensureWeekAgendaFromBase(
     }
 
     const { data: baseEntries } = await supabase
-        .from('schedule_base_entries')
+        .from(tables.baseEntries)
         .select('*')
         .in('slot_id', missingBaseSlots.map((slot: any) => slot.id))
         .order('position');
@@ -112,7 +144,7 @@ export async function ensureWeekAgendaFromBase(
 
     if (weekEntries.length > 0) {
         const { error: entriesError } = await supabase
-            .from('schedule_week_entries')
+            .from(tables.weekEntries)
             .insert(weekEntries);
 
         if (entriesError) {
@@ -122,14 +154,15 @@ export async function ensureWeekAgendaFromBase(
 }
 
 export function normalizeSlotPayload(input: {
-    trainer_id: string;
+    ownerCol: 'trainer_id' | 'professional_id';
+    ownerId: string;
     weekday: number;
     start_time: string;
     capacity: number;
     notes?: string;
 }) {
     return {
-        trainer_id: input.trainer_id,
+        [input.ownerCol]: input.ownerId,
         weekday: input.weekday,
         start_time: normalizeTimeInput(input.start_time),
         capacity: input.capacity,

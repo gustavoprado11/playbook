@@ -6,13 +6,14 @@ import { Check, Minus, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { markAttendance, markPublicAttendance } from '@/app/actions/attendance';
 import { cn } from '@/lib/utils';
-import type { AttendanceStatus } from '@/types/database';
+import type { AgendaKind, AttendanceStatus } from '@/types/database';
 
 interface AttendanceCheckboxProps {
     entryId: string;
     status: AttendanceStatus;
     name: string;
     isGuest?: boolean;
+    agenda?: AgendaKind;
     publicMode?: boolean;
     publicToken?: string;
     highlighted?: boolean;
@@ -29,6 +30,7 @@ export function AttendanceCheckbox({
     status,
     name,
     isGuest = false,
+    agenda = 'training',
     publicMode = false,
     publicToken,
     highlighted = false,
@@ -49,7 +51,7 @@ export function AttendanceCheckbox({
                 if (publicMode && publicToken) {
                     await markPublicAttendance({ entryId, status: nextStatus, token: publicToken });
                 } else {
-                    await markAttendance({ entryId, status: nextStatus });
+                    await markAttendance({ entryId, status: nextStatus, agenda });
                 }
 
                 router.refresh();

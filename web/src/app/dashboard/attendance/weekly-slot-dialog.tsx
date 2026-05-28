@@ -21,7 +21,7 @@ import {
     upsertWeekScheduleSlot,
 } from '@/app/actions/attendance';
 import { WEEKDAY_OPTIONS } from '@/lib/attendance';
-import type { Profile, ScheduleBaseSlot, ScheduleWeekSlot, Trainer } from '@/types/database';
+import type { AgendaKind, Profile, ScheduleBaseSlot, ScheduleWeekSlot, Trainer } from '@/types/database';
 
 type JoinedTrainer = Trainer & { profile: Profile };
 type EditableSlot = (ScheduleBaseSlot | ScheduleWeekSlot) & {
@@ -32,6 +32,8 @@ interface WeeklySlotDialogProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     mode: 'base' | 'week';
+    agenda?: AgendaKind;
+    ownerLabel?: string;
     role: 'manager' | 'trainer';
     publicMode?: boolean;
     publicToken?: string;
@@ -54,6 +56,8 @@ export function WeeklySlotDialog({
     open,
     onOpenChange,
     mode,
+    agenda = 'training',
+    ownerLabel = 'Treinador',
     role,
     publicMode = false,
     publicToken,
@@ -125,6 +129,7 @@ export function WeeklySlotDialog({
                 const payload = {
                     slot_id: slot?.id,
                     trainer_id: role === 'manager' || publicMode ? trainerId : undefined,
+                    agenda,
                     weekday: Number(weekday),
                     start_time: normalizedRows[0].start_time,
                     capacity: normalizedRows[0].capacity,
@@ -162,11 +167,11 @@ export function WeeklySlotDialog({
                 if (mode === 'base' && publicMode && publicToken) {
                     await archivePublicBaseScheduleSlot(publicToken, slot.id);
                 } else if (mode === 'base') {
-                    await archiveBaseScheduleSlot(slot.id);
+                    await archiveBaseScheduleSlot(slot.id, agenda);
                 } else if (publicMode && publicToken) {
                     await deletePublicWeekScheduleSlot(publicToken, slot.id);
                 } else {
-                    await deleteWeekScheduleSlot(slot.id);
+                    await deleteWeekScheduleSlot(slot.id, agenda);
                 }
 
                 toast.success(mode === 'base' ? 'Horário fixo removido' : 'Horário da semana removido');
@@ -193,7 +198,7 @@ export function WeeklySlotDialog({
                             <DialogDescription className="mt-2">
                                 {slot?.id
                                     ? 'Ajuste horário, vagas e observações. Participantes são gerenciados direto na célula.'
-                                    : 'Defina treinador, dia, horário e vagas. Participantes serão adicionados depois na célula.'}
+                                    : `Defina ${ownerLabel.toLowerCase()}, dia, horário e vagas. Participantes serão adicionados depois na célula.`}
                             </DialogDescription>
                         </div>
                     </div>
@@ -204,10 +209,10 @@ export function WeeklySlotDialog({
                         <div className="grid gap-4 lg:grid-cols-3">
                             {(role === 'manager' || publicMode) && (
                                 <div className="space-y-2 lg:col-span-2">
-                                    <Label>Treinador</Label>
+                                    <Label>{ownerLabel}</Label>
                                     <Select value={trainerId} onValueChange={setTrainerId}>
                                         <SelectTrigger>
-                                            <SelectValue placeholder="Selecione o treinador" />
+                                            <SelectValue placeholder={`Selecione o ${ownerLabel.toLowerCase()}`} />
                                         </SelectTrigger>
                                         <SelectContent>
                                             {trainers.map((trainer) => (

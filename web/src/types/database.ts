@@ -128,14 +128,80 @@ export interface AttendanceRecord {
   trainer?: Trainer & { profile?: Profile };
 }
 
+export type AgendaKind = 'training' | 'physiotherapy';
+export type AgendaSessionType = 'avaliacao' | 'recovery' | 'sessao';
+
 export interface AttendancePublicLink {
   id: string;
   label: string;
   access_token: string;
   is_active: boolean;
+  agenda: AgendaKind;
   created_by: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface PhysioScheduleBaseSlot {
+  id: string;
+  professional_id: string;
+  weekday: number;
+  start_time: string;
+  capacity: number;
+  notes: string | null;
+  is_active: boolean;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+  professional?: Professional & { profile?: Profile };
+  entries?: PhysioScheduleBaseEntry[];
+}
+
+export interface PhysioScheduleBaseEntry {
+  id: string;
+  slot_id: string;
+  student_id: string | null;
+  guest_name: string | null;
+  guest_origin: string | null;
+  position: number;
+  session_type: AgendaSessionType;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+  student?: Student & { trainer?: Trainer & { profile?: Profile } };
+}
+
+export interface PhysioScheduleWeekSlot {
+  id: string;
+  base_slot_id: string | null;
+  professional_id: string;
+  week_start: string;
+  weekday: number;
+  start_time: string;
+  capacity: number;
+  notes: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+  professional?: Professional & { profile?: Profile };
+  entries?: PhysioScheduleWeekEntry[];
+}
+
+export interface PhysioScheduleWeekEntry {
+  id: string;
+  week_slot_id: string;
+  student_id: string | null;
+  guest_name: string | null;
+  guest_origin: string | null;
+  position: number;
+  status: AttendanceStatus;
+  session_type: AgendaSessionType;
+  notes: string | null;
+  marked_by: string | null;
+  marked_at: string | null;
+  created_at: string;
+  updated_at: string;
+  student?: Student & { trainer?: Trainer & { profile?: Profile } };
 }
 
 export interface ScheduleParticipant {
@@ -145,6 +211,7 @@ export interface ScheduleParticipant {
   guest_origin?: string;
   position: number;
   status?: AttendanceStatus;
+  session_type?: AgendaSessionType;
   notes?: string;
 }
 
@@ -450,6 +517,7 @@ export interface SetAttendanceStatusInput {
 export interface UpsertScheduleSlotInput {
   slot_id?: string;
   trainer_id?: string;
+  agenda?: AgendaKind;
   weekday: number;
   start_time: string;
   capacity: number;

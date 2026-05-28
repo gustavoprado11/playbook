@@ -80,6 +80,7 @@ export function Sidebar({ role, userName, professionType, messagesCount = 0 }: S
         { href: '/dashboard/physiotherapist', label: 'Painel', icon: Home },
         { href: '/dashboard/physiotherapist/patients', label: 'Pacientes', icon: Users },
         { href: '/dashboard/physiotherapist/sessions', label: 'Sessões', icon: Activity },
+        { href: '/dashboard/physiotherapist/attendance', label: 'Agenda', icon: Clock },
         { href: '/dashboard/physiotherapist/treatment-plans', label: 'Protocolos', icon: FileText },
         messagesLink,
     ];

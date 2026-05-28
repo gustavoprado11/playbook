@@ -14,6 +14,7 @@ import { getOrCreateAttendancePublicLink, regenerateAttendancePublicLink } from 
 import { formatTimeLabel, WEEKDAY_OPTIONS } from '@/lib/attendance';
 import { cn } from '@/lib/utils';
 import type {
+    AgendaKind,
     AttendancePublicLink,
     Profile,
     ScheduleBaseEntry,
@@ -33,6 +34,9 @@ type WeekSlot = ScheduleWeekSlot & { trainer: JoinedTrainer; entries: (ScheduleW
 
 interface AttendanceWorkspaceProps {
     role: 'manager' | 'trainer';
+    agenda?: AgendaKind;
+    ownerLabel?: string;
+    ownerLabelPlural?: string;
     basePath: string;
     weekLabel: string;
     weekStart: string;
@@ -57,6 +61,9 @@ type TabMode = 'week' | 'base';
 
 export function AttendanceWorkspace({
     role,
+    agenda = 'training',
+    ownerLabel = 'Treinador',
+    ownerLabelPlural = 'Todos os treinadores',
     basePath,
     weekLabel,
     weekStart,
@@ -82,6 +89,16 @@ export function AttendanceWorkspace({
 
     const prevWeek = format(addDays(parseISO(weekStart), -7), 'yyyy-MM-dd');
     const nextWeek = format(addDays(parseISO(weekStart), 7), 'yyyy-MM-dd');
+    const agendaSuffix = agenda === 'physiotherapy' ? '&agenda=physiotherapy' : '';
+
+    function agendaHref(targetAgenda: AgendaKind) {
+        const params = new URLSearchParams();
+        params.set('week', weekStart);
+        if (targetAgenda === 'physiotherapy') {
+            params.set('agenda', 'physiotherapy');
+        }
+        return `${basePath}?${params.toString()}`;
+    }
     const appOrigin = process.env.NEXT_PUBLIC_APP_URL || (typeof window !== 'undefined' ? window.location.origin : '');
     const receptionistUrl = linkState ? `${appOrigin}/agenda/${linkState.access_token}` : null;
 
@@ -314,7 +331,7 @@ export function AttendanceWorkspace({
                 <div className="border-b border-zinc-200 bg-zinc-50/90 px-5 py-4 lg:px-6">
                     <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
                         <div className="flex flex-wrap items-center gap-2">
-                            <Link href={`${basePath}?week=${prevWeek}`}>
+                            <Link href={`${basePath}?week=${prevWeek}${agendaSuffix}`}>
                                 <Button variant="outline" size="sm">
                                     <ChevronLeft className="h-4 w-4" />
                                     Semana anterior
@@ -324,12 +341,37 @@ export function AttendanceWorkspace({
                                 <CalendarDays className="h-4 w-4 text-emerald-600" />
                                 {weekLabel}
                             </div>
-                            <Link href={`${basePath}?week=${nextWeek}`}>
+                            <Link href={`${basePath}?week=${nextWeek}${agendaSuffix}`}>
                                 <Button variant="outline" size="sm">
                                     Próxima semana
                                     <ChevronRight className="h-4 w-4" />
                                 </Button>
                             </Link>
+
+                            {role === 'manager' && !publicMode && (
+                                <div className="inline-flex items-center gap-1 rounded-full border border-zinc-200 bg-white p-1">
+                                    <button
+                                        type="button"
+                                        onClick={() => router.push(agendaHref('training'))}
+                                        className={cn(
+                                            'rounded-full px-3 py-1.5 text-sm font-medium transition',
+                                            agenda === 'training' ? 'bg-zinc-950 text-white shadow-sm' : 'text-zinc-600 hover:text-zinc-900'
+                                        )}
+                                    >
+                                        Treino
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => router.push(agendaHref('physiotherapy'))}
+                                        className={cn(
+                                            'rounded-full px-3 py-1.5 text-sm font-medium transition',
+                                            agenda === 'physiotherapy' ? 'bg-zinc-950 text-white shadow-sm' : 'text-zinc-600 hover:text-zinc-900'
+                                        )}
+                                    >
+                                        Fisioterapia
+                                    </button>
+                                </div>
+                            )}
                         </div>
 
                         <div className="flex flex-wrap items-center gap-2">
@@ -346,7 +388,7 @@ export function AttendanceWorkspace({
                                     onChange={(event) => setSelectedTrainer(event.target.value)}
                                     className="h-10 rounded-full border border-zinc-300 bg-white px-4 text-sm text-zinc-700 outline-none focus:border-emerald-500"
                                 >
-                                    <option value="all">Todos os treinadores</option>
+                                    <option value="all">{ownerLabelPlural}</option>
                                     {trainers.map((trainer) => (
                                         <option key={trainer.id} value={trainer.id}>
                                             {trainer.profile?.full_name}
@@ -420,6 +462,8 @@ export function AttendanceWorkspace({
 
                     <SpreadsheetGrid
                         mode={tab}
+                        agenda={agenda}
+                        ownerLabel={ownerLabel}
                         weekDays={weekDays}
                         timeRows={timeRows}
                         baseSlots={trainerFilteredBase}
@@ -497,6 +541,8 @@ export function AttendanceWorkspace({
                 open={dialogOpen}
                 onOpenChange={setDialogOpen}
                 mode={editingMode}
+                agenda={agenda}
+                ownerLabel={ownerLabel}
                 role={role}
                 publicMode={publicMode}
                 publicToken={publicToken}
@@ -511,6 +557,8 @@ export function AttendanceWorkspace({
 
 function SpreadsheetGrid({
     mode,
+    agenda,
+    ownerLabel,
     weekDays,
     timeRows,
     baseSlots,
@@ -526,6 +574,8 @@ function SpreadsheetGrid({
     matchedEntryIds,
 }: {
     mode: TabMode;
+    agenda: AgendaKind;
+    ownerLabel: string;
     weekDays: AttendanceWorkspaceProps['weekDays'];
     timeRows: string[];
     baseSlots: BaseSlot[];
@@ -572,6 +622,8 @@ function SpreadsheetGrid({
             <div className="xl:hidden">
                 <MobileAgendaStack
                     mode={mode}
+                    agenda={agenda}
+                    ownerLabel={ownerLabel}
                     weekDays={weekDays}
                     timeRows={timeRows}
                     slots={slots}
@@ -616,6 +668,7 @@ function SpreadsheetGrid({
                         <GridRow
                             key={time}
                             mode={mode}
+                            agenda={agenda}
                             time={time}
                             rowIndex={index}
                             weekDays={weekDays}
@@ -640,6 +693,7 @@ function SpreadsheetGrid({
 
 function GridRow({
     mode,
+    agenda,
     time,
     rowIndex,
     weekDays,
@@ -655,6 +709,7 @@ function GridRow({
     matchedEntryIds,
 }: {
     mode: TabMode;
+    agenda: AgendaKind;
     time: string;
     rowIndex: number;
     weekDays: AttendanceWorkspaceProps['weekDays'];
@@ -719,6 +774,7 @@ function GridRow({
                                         slot={slot}
                                         students={students}
                                         mode={mode}
+                                        agenda={agenda}
                                         publicMode={publicMode}
                                         publicToken={publicToken}
                                         onEditSlot={() => onEditCell(mode, slot)}
@@ -755,6 +811,7 @@ function GridRow({
                                                                 status={entry.status}
                                                                 name={participantName(entry)}
                                                                 isGuest={!entry.student_id && !!entry.guest_name}
+                                                                agenda={agenda}
                                                                 publicMode={publicMode}
                                                                 publicToken={publicToken}
                                                                 highlighted={entryHighlighted}
@@ -813,6 +870,8 @@ function MetricBox({ label, value }: { label: string; value: string }) {
 
 function MobileAgendaStack({
     mode,
+    agenda,
+    ownerLabel,
     weekDays,
     timeRows,
     slots,
@@ -827,6 +886,8 @@ function MobileAgendaStack({
     matchedEntryIds,
 }: {
     mode: TabMode;
+    agenda: AgendaKind;
+    ownerLabel: string;
     weekDays: AttendanceWorkspaceProps['weekDays'];
     timeRows: string[];
     slots: (BaseSlot | WeekSlot)[];
@@ -888,7 +949,7 @@ function MobileAgendaStack({
                                                     onClick={() => onNewCell(mode, day.value, time.slice(0, 5))}
                                                     className="rounded-full border border-white/15 px-3 py-1 text-xs font-medium text-zinc-200"
                                                 >
-                                                    + treinador
+                                                    + {ownerLabel.toLowerCase()}
                                                 </button>
                                             </div>
 
@@ -908,6 +969,7 @@ function MobileAgendaStack({
                                                         slot={slot}
                                                         students={students}
                                                         mode={mode}
+                                                        agenda={agenda}
                                                         publicMode={publicMode}
                                                         publicToken={publicToken}
                                                         onEditSlot={() => onEditCell(mode, slot)}
@@ -919,7 +981,7 @@ function MobileAgendaStack({
                                                         )}>
                                                             <div className="flex items-center justify-between gap-3">
                                                                 <p className="truncate text-sm font-medium text-zinc-700">
-                                                                    {slot.trainer?.profile?.full_name || 'Treinador'}
+                                                                    {slot.trainer?.profile?.full_name || ownerLabel}
                                                                 </p>
                                                                 <span className={cn('shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold', capacityColor)}>
                                                                     {slot.entries.length}/{slot.capacity}
@@ -938,6 +1000,7 @@ function MobileAgendaStack({
                                                                                 status={entry.status}
                                                                                 name={participantName(entry)}
                                                                                 isGuest={!entry.student_id && !!entry.guest_name}
+                                                                                agenda={agenda}
                                                                                 publicMode={publicMode}
                                                                                 publicToken={publicToken}
                                                                                 highlighted={entryHighlighted}

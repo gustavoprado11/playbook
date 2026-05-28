@@ -13,13 +13,24 @@ import {
     markAllPublicPresent,
     removeEntryFromSlot,
     removePublicEntryFromSlot,
+    updateEntrySessionType,
+    updatePublicEntrySessionType,
 } from '@/app/actions/attendance';
 import type {
+    AgendaKind,
     AttendanceStatus,
+    AgendaSessionType,
     Profile,
     Student,
     Trainer,
 } from '@/types/database';
+
+const SESSION_TYPES: AgendaSessionType[] = ['avaliacao', 'recovery', 'sessao'];
+const sessionMeta: Record<AgendaSessionType, { short: string; label: string; cls: string }> = {
+    avaliacao: { short: 'Aval.', label: 'Avaliação', cls: 'bg-violet-100 text-violet-700' },
+    recovery: { short: 'Rec.', label: 'Recovery', cls: 'bg-blue-100 text-blue-700' },
+    sessao: { short: 'Sessão', label: 'Sessão', cls: 'bg-emerald-100 text-emerald-700' },
+};
 
 type JoinedStudent = Student & { trainer: Trainer & { profile: Profile } };
 type JoinedTrainer = Trainer & { profile: Profile };
@@ -29,6 +40,7 @@ interface SlotEntry {
     student_id: string | null;
     guest_name: string | null;
     status?: AttendanceStatus;
+    session_type?: AgendaSessionType;
     student?: JoinedStudent | null;
 }
 
@@ -44,6 +56,7 @@ interface SlotCellPopoverProps {
     slot: PopoverSlot;
     students: JoinedStudent[];
     mode: 'base' | 'week';
+    agenda?: AgendaKind;
     publicMode?: boolean;
     publicToken?: string;
     onEditSlot: () => void;
@@ -54,6 +67,7 @@ export function SlotCellPopover({
     slot,
     students,
     mode,
+    agenda = 'training',
     publicMode = false,
     publicToken,
     onEditSlot,
@@ -64,8 +78,10 @@ export function SlotCellPopover({
     const [search, setSearch] = useState('');
     const [isPending, startTransition] = useTransition();
     const [pendingEntryId, setPendingEntryId] = useState<string | null>(null);
+    const [nextSessionType, setNextSessionType] = useState<AgendaSessionType>('sessao');
     const inputRef = useRef<HTMLInputElement>(null);
 
+    const isPhysio = agenda === 'physiotherapy';
     const isFull = slot.entries.length >= slot.capacity;
     const allPresent = slot.entries.length > 0 && slot.entries.every((e) => e.status === 'present');
 
@@ -75,7 +91,7 @@ export function SlotCellPopover({
                 if (publicMode && publicToken) {
                     await markAllPublicPresent({ weekSlotId: slot.id, token: publicToken });
                 } else {
-                    await markAllPresent({ weekSlotId: slot.id });
+                    await markAllPresent({ weekSlotId: slot.id, agenda });
                 }
 
                 router.refresh();
@@ -111,12 +127,12 @@ export function SlotCellPopover({
     function handleAddStudent(student: JoinedStudent) {
         startTransition(async () => {
             try {
-                const payload = { slotId: slot.id, slotType: mode, studentId: student.id };
+                const payload = { slotId: slot.id, slotType: mode, studentId: student.id, sessionType: isPhysio ? nextSessionType : undefined };
 
                 if (publicMode && publicToken) {
                     await addPublicEntryToSlot(publicToken, payload);
                 } else {
-                    await addEntryToSlot(payload);
+                    await addEntryToSlot({ ...payload, agenda });
                 }
 
                 setSearch('');
@@ -134,12 +150,12 @@ export function SlotCellPopover({
 
         startTransition(async () => {
             try {
-                const payload = { slotId: slot.id, slotType: mode, guestName };
+                const payload = { slotId: slot.id, slotType: mode, guestName, sessionType: isPhysio ? nextSessionType : undefined };
 
                 if (publicMode && publicToken) {
                     await addPublicEntryToSlot(publicToken, payload);
                 } else {
-                    await addEntryToSlot(payload);
+                    await addEntryToSlot({ ...payload, agenda });
                 }
 
                 setSearch('');
@@ -160,7 +176,7 @@ export function SlotCellPopover({
                 if (publicMode && publicToken) {
                     await removePublicEntryFromSlot(publicToken, payload);
                 } else {
-                    await removeEntryFromSlot(payload);
+                    await removeEntryFromSlot({ ...payload, agenda });
                 }
 
                 router.refresh();
@@ -169,6 +185,24 @@ export function SlotCellPopover({
                 toast.error(error instanceof Error ? error.message : 'Erro ao remover');
             } finally {
                 setPendingEntryId(null);
+            }
+        });
+    }
+
+    function handleCycleType(entry: SlotEntry) {
+        const current = entry.session_type ?? 'sessao';
+        const next = SESSION_TYPES[(SESSION_TYPES.indexOf(current) + 1) % SESSION_TYPES.length];
+        startTransition(async () => {
+            try {
+                const payload = { entryId: entry.id, slotType: mode, sessionType: next };
+                if (publicMode && publicToken) {
+                    await updatePublicEntrySessionType(publicToken, payload);
+                } else {
+                    await updateEntrySessionType(payload);
+                }
+                router.refresh();
+            } catch (error) {
+                toast.error(error instanceof Error ? error.message : 'Erro ao atualizar tipo');
             }
         });
     }
@@ -237,10 +271,21 @@ export function SlotCellPopover({
                                     key={entry.id}
                                     className="group flex items-center justify-between rounded-lg px-2 py-1.5 transition hover:bg-zinc-50"
                                 >
-                                    <div className="min-w-0">
+                                    <div className="flex min-w-0 items-center gap-2">
                                         <p className={`truncate text-sm font-medium text-zinc-900 ${!entry.student_id && entry.guest_name ? 'italic' : ''}`}>
                                             {entry.student?.full_name || entry.guest_name || 'Vaga livre'}
                                         </p>
+                                        {isPhysio && (
+                                            <button
+                                                type="button"
+                                                disabled={isPending}
+                                                onClick={() => handleCycleType(entry)}
+                                                title="Trocar tipo de atendimento"
+                                                className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-semibold transition disabled:opacity-50 ${sessionMeta[entry.session_type ?? 'sessao'].cls}`}
+                                            >
+                                                {sessionMeta[entry.session_type ?? 'sessao'].short}
+                                            </button>
+                                        )}
                                     </div>
                                     <button
                                         type="button"
@@ -266,6 +311,20 @@ export function SlotCellPopover({
                     </div>
                 ) : (
                     <div className="border-t border-zinc-200 px-3 py-2.5">
+                        {isPhysio && (
+                            <div className="mb-2 flex items-center gap-1">
+                                {SESSION_TYPES.map((t) => (
+                                    <button
+                                        key={t}
+                                        type="button"
+                                        onClick={() => setNextSessionType(t)}
+                                        className={`flex-1 rounded-md px-2 py-1 text-[11px] font-semibold transition ${nextSessionType === t ? sessionMeta[t].cls : 'bg-zinc-50 text-zinc-400 hover:text-zinc-600'}`}
+                                    >
+                                        {sessionMeta[t].label}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
                         <Input
                             ref={inputRef}
                             value={search}
