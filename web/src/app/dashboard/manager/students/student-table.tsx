@@ -77,6 +77,7 @@ type SortField = 'name' | 'trainer' | 'status' | 'start_date';
 export function ManagerStudentTable({ students, trainers }: ManagerStudentTableProps) {
     const [search, setSearch] = useState('');
     const [filter, setFilter] = useState<FilterStatus>('active');
+    const [onlyNoTrainer, setOnlyNoTrainer] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const [sortField, setSortField] = useState<SortField>('name');
     const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
@@ -105,6 +106,9 @@ export function ManagerStudentTable({ students, trainers }: ManagerStudentTableP
                     if (filter !== 'all' && s.status !== filter) return false;
                 }
 
+                // Sem treinador
+                if (onlyNoTrainer && s.trainer_id) return false;
+
                 // Search Logic
                 if (search) {
                     const searchLower = search.toLowerCase();
@@ -128,7 +132,7 @@ export function ManagerStudentTable({ students, trainers }: ManagerStudentTableP
                 if (sortField === 'start_date') return (a.start_date.localeCompare(b.start_date)) * dir;
                 return 0;
             });
-    }, [students, search, filter, sortField, sortDir]);
+    }, [students, search, filter, onlyNoTrainer, sortField, sortDir]);
 
     const handleArchive = async () => {
         if (!studentToArchive) return;
@@ -228,6 +232,15 @@ export function ManagerStudentTable({ students, trainers }: ManagerStudentTableP
                         className="rounded-full text-zinc-500"
                     >
                         Todos
+                    </Button>
+                    <div className="h-4 w-px bg-zinc-200 mx-1" />
+                    <Button
+                        variant={onlyNoTrainer ? 'secondary' : 'outline'}
+                        size="sm"
+                        onClick={() => setOnlyNoTrainer((v) => !v)}
+                        className={`rounded-full ${onlyNoTrainer ? '' : 'text-amber-700'}`}
+                    >
+                        Sem treinador
                     </Button>
                 </div>
 
