@@ -2,6 +2,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { formatIsoDateLabel } from '@/lib/attendance';
 import type { PhysioTreatmentPlan } from '@/types/database';
 
 const statusLabels: Record<string, string> = {
@@ -44,8 +45,8 @@ export function TreatmentPlanCard({
                     <div className="space-y-1">
                         <CardTitle className="text-base">{plan.diagnosis}</CardTitle>
                         <p className="text-xs text-zinc-500">
-                            {new Date(plan.start_date).toLocaleDateString('pt-BR')}
-                            {plan.end_date && ` - ${new Date(plan.end_date).toLocaleDateString('pt-BR')}`}
+                            {formatIsoDateLabel(plan.start_date.slice(0, 10))}
+                            {plan.end_date && ` - ${formatIsoDateLabel(plan.end_date.slice(0, 10))}`}
                         </p>
                     </div>
                     <TreatmentStatusBadge status={plan.status} />

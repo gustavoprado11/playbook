@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { setPhysioPatientStatus } from '@/app/actions/physio';
+import { formatIsoDateLabel } from '@/lib/attendance';
 import type { PhysioCareStatus } from '@/types/database';
 
 interface Props {
@@ -34,7 +35,7 @@ export function PhysioStatusControl({ studentId, careStatus = 'in_treatment', di
                 className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${discharged ? 'bg-zinc-100 text-zinc-600' : 'bg-emerald-100 text-emerald-700'}`}
             >
                 {discharged
-                    ? `Alta${dischargedAt ? ` · ${new Date(dischargedAt).toLocaleDateString('pt-BR')}` : ''}`
+                    ? `Alta${dischargedAt ? ` · ${formatIsoDateLabel(dischargedAt.slice(0, 10))}` : ''}`
                     : 'Em atendimento'}
             </span>
             {discharged ? (

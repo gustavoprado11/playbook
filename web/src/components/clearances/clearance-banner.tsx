@@ -1,5 +1,6 @@
 import { Ban, AlertOctagon, AlertTriangle, ShieldCheck } from 'lucide-react';
 import { ProfessionBadge } from '@/components/profession-badge';
+import { formatIsoDateLabel } from '@/lib/attendance';
 import type { StudentClearance, ClearanceLevel } from '@/types/database';
 
 const levelMeta: Record<ClearanceLevel, { label: string; box: string; Icon: React.ComponentType<{ className?: string }>; iconColor: string }> = {
@@ -45,7 +46,7 @@ export function ClearanceBanner({ clearances, compact }: { clearances: StudentCl
                                 <div className="mt-1.5 flex items-center gap-1.5 text-xs text-zinc-500">
                                     <span>{c.issued_by.full_name}</span>
                                     <ProfessionBadge type={c.issued_by.profession_type} compact />
-                                    <span>· desde {new Date(c.effective_from).toLocaleDateString('pt-BR')}</span>
+                                    <span>· desde {formatIsoDateLabel(c.effective_from.slice(0, 10))}</span>
                                 </div>
                             )}
                         </div>
