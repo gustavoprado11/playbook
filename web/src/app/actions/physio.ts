@@ -51,6 +51,60 @@ export async function listMyPhysioPatients() {
     return { data, error: null };
 }
 
+export async function setPhysioPatientStatus(
+    studentId: string,
+    status: 'in_treatment' | 'discharged'
+) {
+    const auth = await checkPhysioAuth();
+    if (!auth) return { error: 'Não autorizado' };
+
+    const { supabase, professionalId } = auth;
+    const { error } = await supabase
+        .from('student_professionals')
+        .update({
+            care_status: status,
+            discharged_at: status === 'discharged' ? new Date().toISOString().split('T')[0] : null,
+        })
+        .eq('professional_id', professionalId)
+        .eq('student_id', studentId);
+
+    if (error) {
+        console.error('Error setting patient status:', error);
+        return { error: 'Não foi possível atualizar o status' };
+    }
+
+    revalidatePath('/dashboard/physiotherapist/patients');
+    revalidatePath(`/dashboard/physiotherapist/patients/${studentId}`);
+    return { success: true };
+}
+
+export interface PhysioSessionCounts {
+    avaliacao: number;
+    recovery: number;
+    sessao: number;
+}
+
+export async function getPhysioSessionCounts(studentId: string): Promise<PhysioSessionCounts> {
+    const empty = { avaliacao: 0, recovery: 0, sessao: 0 };
+    const auth = await checkPhysioAuth();
+    if (!auth) return empty;
+
+    const { supabase, professionalId } = auth;
+    // Conta presenças por tipo de atendimento na agenda de fisio do profissional.
+    const { data } = await supabase
+        .from('physio_schedule_week_entries')
+        .select('session_type, slot:physio_schedule_week_slots!inner(professional_id)')
+        .eq('student_id', studentId)
+        .eq('status', 'present')
+        .eq('slot.professional_id', professionalId);
+
+    const counts = { ...empty };
+    for (const row of (data || []) as { session_type: keyof PhysioSessionCounts }[]) {
+        if (row.session_type in counts) counts[row.session_type] += 1;
+    }
+    return counts;
+}
+
 // === SESSÕES ===
 
 export async function listPhysioSessions(studentId?: string) {

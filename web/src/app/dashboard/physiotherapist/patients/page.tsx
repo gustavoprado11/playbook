@@ -1,7 +1,6 @@
 import { listMyPhysioPatients } from '@/app/actions/physio';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import {
     Table,
     TableBody,
@@ -13,6 +12,7 @@ import {
 import { Users } from 'lucide-react';
 import Link from 'next/link';
 import { AddPatientDialog } from '@/components/patients/add-patient-dialog';
+import { PhysioStatusControl } from '@/components/physio/physio-status-control';
 
 export default async function PhysioPatientsPage() {
     const { data: patients, error } = await listMyPhysioPatients();
@@ -65,9 +65,11 @@ export default async function PhysioPatientsPage() {
                                                 {student.phone || '-'}
                                             </TableCell>
                                             <TableCell>
-                                                <Badge className="bg-green-100 text-green-800 border-green-200">
-                                                    Ativo
-                                                </Badge>
+                                                <PhysioStatusControl
+                                                    studentId={student.id}
+                                                    careStatus={sp.care_status}
+                                                    dischargedAt={sp.discharged_at}
+                                                />
                                             </TableCell>
                                             <TableCell className="text-right">
                                                 <Link href={`/dashboard/physiotherapist/patients/${student.id}`}>

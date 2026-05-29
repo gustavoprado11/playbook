@@ -584,12 +584,15 @@ export interface Professional {
 }
 
 export type StudentProfessionalStatus = 'active' | 'inactive';
+export type PhysioCareStatus = 'in_treatment' | 'discharged';
 
 export interface StudentProfessional {
     id: string;
     student_id: string;
     professional_id: string;
     status: StudentProfessionalStatus;
+    care_status?: PhysioCareStatus;
+    discharged_at?: string | null;
     started_at: string;
     ended_at: string | null;
     notes: string | null;

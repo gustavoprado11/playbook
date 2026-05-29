@@ -1,4 +1,4 @@
-import { listMyPhysioPatients, listPhysioSessions, listTreatmentPlans } from '@/app/actions/physio';
+import { listMyPhysioPatients, listPhysioSessions, listTreatmentPlans, getPhysioSessionCounts } from '@/app/actions/physio';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
@@ -12,6 +12,7 @@ import { ClearanceDialog } from '@/components/clearances/clearance-dialog';
 import { ClearanceBanner } from '@/components/clearances/clearance-banner';
 import { NewReferralDialog } from '@/components/referrals/new-referral-dialog';
 import { SharedNotesPanel } from '@/components/shared-notes/shared-notes-panel';
+import { PhysioStatusControl } from '@/components/physio/physio-status-control';
 
 interface Props {
     params: Promise<{ id: string }>;
@@ -20,7 +21,7 @@ interface Props {
 export default async function PatientDetailPage({ params }: Props) {
     const { id } = await params;
 
-    const [patientsResult, sessionsResult, plansResult, clearanceHistory, sharedNotes, coProfessionals, profile] = await Promise.all([
+    const [patientsResult, sessionsResult, plansResult, clearanceHistory, sharedNotes, coProfessionals, profile, sessionCounts] = await Promise.all([
         listMyPhysioPatients(),
         listPhysioSessions(id),
         listTreatmentPlans(id),
@@ -28,14 +29,21 @@ export default async function PatientDetailPage({ params }: Props) {
         getSharedNotes(id),
         getCoProfessionals(id),
         getProfile(),
+        getPhysioSessionCounts(id),
     ]);
 
-    const patient = patientsResult.data?.find((sp: any) => sp.student?.id === id)?.student;
+    const link = patientsResult.data?.find((sp: any) => sp.student?.id === id);
+    const patient = link?.student;
     if (!patient) {
         notFound();
     }
 
     const activeClearances = clearanceHistory.filter((c) => c.status === 'active');
+    const countItems = [
+        { label: 'Avaliações', value: sessionCounts.avaliacao },
+        { label: 'Recovery', value: sessionCounts.recovery },
+        { label: 'Sessões', value: sessionCounts.sessao },
+    ];
 
     return (
         <div className="space-y-6">
@@ -54,6 +62,18 @@ export default async function PatientDetailPage({ params }: Props) {
                 <div className="flex items-center gap-2">
                     <ClearanceDialog studentId={id} />
                     <NewReferralDialog studentId={id} studentName={patient.full_name} coProfessionals={coProfessionals} />
+                </div>
+            </div>
+
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-zinc-200 bg-white p-3">
+                <PhysioStatusControl studentId={id} careStatus={link?.care_status} dischargedAt={link?.discharged_at} />
+                <div className="flex gap-2">
+                    {countItems.map((c) => (
+                        <div key={c.label} className="rounded-lg bg-zinc-50 px-3 py-1.5 text-center">
+                            <div className="text-lg font-semibold text-zinc-900">{c.value}</div>
+                            <div className="text-[11px] text-zinc-500">{c.label}</div>
+                        </div>
+                    ))}
                 </div>
             </div>
 
