@@ -32,7 +32,7 @@ export interface IntegratedStudentView {
 export interface TimelineEvent {
     id: string;
     date: string;
-    type: 'assessment' | 'nutrition_consultation' | 'physio_session' | 'meal_plan' | 'treatment_plan' | 'status_change' | 'lab_result';
+    type: 'assessment' | 'nutrition_consultation' | 'physio_session' | 'physio_evolution' | 'meal_plan' | 'treatment_plan' | 'status_change' | 'lab_result';
     title: string;
     description?: string;
     professional?: string;
@@ -88,6 +88,7 @@ export async function getStudentIntegratedView(studentId: string): Promise<Integ
         treatmentPlansResult,
         assessmentsResult,
         eventsResult,
+        evolutionsResult,
     ] = await Promise.all([
         nutritionistId
             ? admin
@@ -147,6 +148,15 @@ export async function getStudentIntegratedView(studentId: string): Promise<Integ
             .eq('student_id', studentId)
             .order('event_date', { ascending: false })
             .limit(10),
+
+        physioId
+            ? admin
+                .from('physio_evolutions')
+                .select('*')
+                .eq('student_id', studentId)
+                .order('created_at', { ascending: false })
+                .limit(5)
+            : Promise.resolve({ data: [] }),
     ]);
 
     const consultations = (consultationsResult.data || []) as NutritionConsultation[];
@@ -156,6 +166,7 @@ export async function getStudentIntegratedView(studentId: string): Promise<Integ
     const treatmentPlans = (treatmentPlansResult.data || []) as PhysioTreatmentPlan[];
     const assessments = assessmentsResult.data || [];
     const events = eventsResult.data || [];
+    const evolutions = evolutionsResult.data || [];
 
     // Build unified timeline
     const timeline: TimelineEvent[] = [];
@@ -190,6 +201,18 @@ export async function getStudentIntegratedView(studentId: string): Promise<Integ
             type: 'physio_session',
             title: 'Sessão de Fisioterapia',
             description: s.clinical_notes || undefined,
+            professional: physioLink?.professional?.profile?.full_name,
+            discipline: 'physiotherapy',
+        });
+    });
+
+    evolutions.forEach((e: any) => {
+        timeline.push({
+            id: e.id,
+            date: e.created_at,
+            type: 'physio_evolution',
+            title: 'Evolução (Fisioterapia)',
+            description: e.body?.length > 120 ? `${e.body.slice(0, 120)}…` : e.body,
             professional: physioLink?.professional?.profile?.full_name,
             discipline: 'physiotherapy',
         });
