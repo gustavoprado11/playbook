@@ -105,6 +105,68 @@ export async function getPhysioSessionCounts(studentId: string): Promise<PhysioS
     return counts;
 }
 
+// === EVOLUÇÃO ===
+
+export async function listPhysioEvolutions(studentId: string) {
+    const auth = await checkPhysioAuth();
+    if (!auth) return { error: 'Não autorizado', data: null };
+
+    const { supabase, professionalId } = auth;
+    const { data, error } = await supabase
+        .from('physio_evolutions')
+        .select('*')
+        .eq('student_id', studentId)
+        .eq('professional_id', professionalId)
+        .order('created_at', { ascending: false });
+
+    if (error) {
+        console.error('Error listing evolutions:', error);
+        return { error: 'Erro ao listar evoluções', data: null };
+    }
+    return { data, error: null };
+}
+
+export async function createPhysioEvolution(studentId: string, body: string) {
+    const auth = await checkPhysioAuth();
+    if (!auth) return { error: 'Não autorizado' };
+
+    const text = body.trim();
+    if (!text) return { error: 'Escreva a evolução antes de salvar.' };
+
+    const { supabase, professionalId } = auth;
+    const { error } = await supabase
+        .from('physio_evolutions')
+        .insert({ student_id: studentId, professional_id: professionalId, body: text });
+
+    if (error) {
+        console.error('Error creating evolution:', error);
+        return { error: 'Não foi possível salvar a evolução.' };
+    }
+
+    revalidatePath(`/dashboard/physiotherapist/patients/${studentId}`);
+    return { success: true };
+}
+
+export async function deletePhysioEvolution(evolutionId: string, studentId: string) {
+    const auth = await checkPhysioAuth();
+    if (!auth) return { error: 'Não autorizado' };
+
+    const { supabase, professionalId } = auth;
+    const { error } = await supabase
+        .from('physio_evolutions')
+        .delete()
+        .eq('id', evolutionId)
+        .eq('professional_id', professionalId);
+
+    if (error) {
+        console.error('Error deleting evolution:', error);
+        return { error: 'Não foi possível excluir a evolução.' };
+    }
+
+    revalidatePath(`/dashboard/physiotherapist/patients/${studentId}`);
+    return { success: true };
+}
+
 // === SESSÕES ===
 
 export async function listPhysioSessions(studentId?: string) {

@@ -1,4 +1,4 @@
-import { listMyPhysioPatients, listPhysioSessions, listTreatmentPlans, getPhysioSessionCounts } from '@/app/actions/physio';
+import { listMyPhysioPatients, listPhysioSessions, listTreatmentPlans, getPhysioSessionCounts, listPhysioEvolutions } from '@/app/actions/physio';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
@@ -13,6 +13,8 @@ import { ClearanceBanner } from '@/components/clearances/clearance-banner';
 import { NewReferralDialog } from '@/components/referrals/new-referral-dialog';
 import { SharedNotesPanel } from '@/components/shared-notes/shared-notes-panel';
 import { PhysioStatusControl } from '@/components/physio/physio-status-control';
+import { PhysioEvolutionPanel } from '@/components/physio/physio-evolution-panel';
+import type { PhysioEvolution } from '@/types/database';
 
 interface Props {
     params: Promise<{ id: string }>;
@@ -21,7 +23,7 @@ interface Props {
 export default async function PatientDetailPage({ params }: Props) {
     const { id } = await params;
 
-    const [patientsResult, sessionsResult, plansResult, clearanceHistory, sharedNotes, coProfessionals, profile, sessionCounts] = await Promise.all([
+    const [patientsResult, sessionsResult, plansResult, clearanceHistory, sharedNotes, coProfessionals, profile, sessionCounts, evolutionsResult] = await Promise.all([
         listMyPhysioPatients(),
         listPhysioSessions(id),
         listTreatmentPlans(id),
@@ -30,7 +32,9 @@ export default async function PatientDetailPage({ params }: Props) {
         getCoProfessionals(id),
         getProfile(),
         getPhysioSessionCounts(id),
+        listPhysioEvolutions(id),
     ]);
+    const evolutions = (evolutionsResult.data || []) as PhysioEvolution[];
 
     const link = patientsResult.data?.find((sp: any) => sp.student?.id === id);
     const patient = link?.student;
@@ -84,6 +88,11 @@ export default async function PatientDetailPage({ params }: Props) {
                 sessions={sessionsResult.data || []}
                 treatmentPlans={plansResult.data || []}
             />
+
+            <div>
+                <h2 className="mb-3 text-lg font-semibold text-zinc-900">Evolução do paciente</h2>
+                <PhysioEvolutionPanel studentId={id} evolutions={evolutions} />
+            </div>
 
             <div>
                 <h2 className="mb-3 text-lg font-semibold text-zinc-900">Notas compartilhadas</h2>

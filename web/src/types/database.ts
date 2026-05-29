@@ -586,6 +586,16 @@ export interface Professional {
 export type StudentProfessionalStatus = 'active' | 'inactive';
 export type PhysioCareStatus = 'in_treatment' | 'discharged';
 
+export interface PhysioEvolution {
+    id: string;
+    student_id: string;
+    professional_id: string;
+    body: string;
+    created_at: string;
+    updated_at: string;
+    professional?: { full_name: string };
+}
+
 export interface StudentProfessional {
     id: string;
     student_id: string;
