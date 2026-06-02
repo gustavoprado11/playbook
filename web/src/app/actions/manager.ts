@@ -411,7 +411,13 @@ export async function updateStudent(
         if (data.status === 'cancelled') {
             // Ensure end_date is set
             updates.end_date = data.end_date || today;
+            updates.paused_at = null;
+        } else if (data.status === 'paused') {
+            // Marca o início da carência de pausa (usado no KPI de retenção)
+            updates.paused_at = today;
         } else if (data.status === 'active' && currentStudent.status === 'paused') {
+            // Reativando: zera o relógio da carência de pausa
+            updates.paused_at = null;
             // Reactivating: Keeps history but maybe clear end_date if it was set?
             // "NÃO apagar end_date histórico" - OK, we accept potentially existing end_date or ignore it
             // Code doesn't explicitly clear it unless we want to "reset" the churn date.
@@ -627,6 +633,13 @@ export async function trainerUpdateStudentStatus(
     const updates: Record<string, any> = { status: newStatus };
     if (newStatus === 'cancelled') {
         updates.end_date = today;
+        updates.paused_at = null;
+    } else if (newStatus === 'paused') {
+        // Marca o início da carência de pausa (usado no KPI de retenção)
+        updates.paused_at = today;
+    } else if (newStatus === 'active') {
+        // Reativando: zera o relógio da carência de pausa
+        updates.paused_at = null;
     }
 
     // 1. Update student status
@@ -1285,6 +1298,7 @@ export type RetentionDetail = {
     studentsStart: number;
     studentsEnd: number;
     cancellations: number;
+    pausedGrace: number;
     retentionRate: number;
     isEligible: boolean;
     cancelledStudents: { id: string; name: string; endDate: string }[];
@@ -1341,7 +1355,7 @@ export async function getKPIDetails(input: {
             p_trainer_id: input.trainerId,
             p_reference_month: input.referenceMonth,
         });
-        const ret = retData?.[0] || { students_start: 0, students_end: 0, cancellations: 0, retention_rate: 0, retention_eligible: false };
+        const ret = retData?.[0] || { students_start: 0, students_end: 0, cancellations: 0, paused_grace: 0, retention_rate: 0, retention_eligible: false };
 
         // Cancelled students in the month
         const { data: cancelled } = await admin
@@ -1369,6 +1383,7 @@ export async function getKPIDetails(input: {
             studentsStart: Number(ret.students_start),
             studentsEnd: Number(ret.students_end),
             cancellations: Number(ret.cancellations),
+            pausedGrace: Number(ret.paused_grace ?? 0),
             retentionRate: Number(ret.retention_rate),
             isEligible: ret.retention_eligible,
             cancelledStudents: (cancelled || []).map((s) => ({ id: s.id, name: s.full_name, endDate: s.end_date! })),

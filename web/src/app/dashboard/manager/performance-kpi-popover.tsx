@@ -97,6 +97,16 @@ function RetentionContent({ data }: { data: RetentionDetail }) {
                     <span>Início do mês:</span>
                     <span className="font-medium text-zinc-900">{data.studentsStart} alunos</span>
                 </div>
+                {data.pausedGrace > 0 && (
+                    <div className="flex justify-between">
+                        <span>Pausados (em carência):</span>
+                        <span className="font-medium text-amber-600">{data.pausedGrace}</span>
+                    </div>
+                )}
+                <div className="flex justify-between">
+                    <span>Base da taxa:</span>
+                    <span className="font-medium text-zinc-900">{data.studentsStart - data.pausedGrace} alunos</span>
+                </div>
                 <div className="flex justify-between">
                     <span>Cancelamentos:</span>
                     <span className="font-medium text-red-600">{data.cancellations}</span>
@@ -110,6 +120,12 @@ function RetentionContent({ data }: { data: RetentionDetail }) {
                     <span className="font-semibold text-zinc-900">{data.retentionRate.toFixed(1)}%</span>
                 </div>
             </div>
+            {data.pausedGrace > 0 && (
+                <p className="text-xs text-amber-600">
+                    Alunos pausados não contam como perda durante a carência. Se a pausa
+                    passar do limite, viram cancelamento e entram na taxa.
+                </p>
+            )}
 
             {data.cancelledStudents.length > 0 && (
                 <div>
