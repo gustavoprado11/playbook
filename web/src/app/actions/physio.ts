@@ -500,16 +500,85 @@ export async function completeTreatmentPlan(planId: string) {
 
 // === ANEXOS ===
 
+export async function listPhysioAttachments(studentId: string) {
+    const auth = await checkPhysioAuth();
+    if (!auth) return { error: 'Não autorizado', data: null };
+
+    const { supabase } = auth;
+
+    const { data, error } = await supabase
+        .from('physio_attachments')
+        .select('*')
+        .eq('student_id', studentId)
+        .order('created_at', { ascending: false });
+
+    if (error) {
+        console.error('Error listing attachments:', error);
+        return { error: 'Erro ao listar anexos', data: null };
+    }
+
+    // Bucket é privado: gera URL assinada (1h) para abrir/baixar cada arquivo.
+    const withUrls = await Promise.all(
+        (data || []).map(async (att) => {
+            const { data: signed } = await supabase.storage
+                .from('physio-attachments')
+                .createSignedUrl(att.file_path, 3600);
+            return { ...att, signed_url: signed?.signedUrl ?? null };
+        })
+    );
+
+    return { data: withUrls, error: null };
+}
+
+export interface CreatePhysioAttachmentInput {
+    student_id: string;
+    session_id?: string | null;
+    treatment_plan_id?: string | null;
+    file_path: string;
+    file_name: string;
+    file_type: string;
+    file_size: number;
+    description?: string | null;
+}
+
+export async function createPhysioAttachment(input: CreatePhysioAttachmentInput) {
+    const auth = await checkPhysioAuth();
+    if (!auth) return { error: 'Não autorizado' };
+
+    const { supabase } = auth;
+
+    const { error } = await supabase.from('physio_attachments').insert({
+        student_id: input.student_id,
+        session_id: input.session_id ?? null,
+        treatment_plan_id: input.treatment_plan_id ?? null,
+        file_path: input.file_path,
+        file_name: input.file_name,
+        file_type: input.file_type,
+        file_size: input.file_size,
+        description: input.description?.trim() || null,
+    });
+
+    if (error) {
+        console.error('Error creating attachment:', error);
+        // Evita arquivo órfão no storage se o insert falhar (ex.: RLS).
+        await supabase.storage.from('physio-attachments').remove([input.file_path]);
+        return { error: 'Erro ao salvar anexo' };
+    }
+
+    revalidatePath(`/dashboard/physiotherapist/patients/${input.student_id}`);
+    return { success: true };
+}
+
 export async function deletePhysioAttachment(attachmentId: string) {
     const auth = await checkPhysioAuth();
     if (!auth) return { error: 'Não autorizado' };
 
     const { supabase } = auth;
 
-    // Get file path before deleting
+    // Get file path (and student) before deleting
     const { data: attachment } = await supabase
         .from('physio_attachments')
-        .select('file_path')
+        .select('file_path, student_id')
         .eq('id', attachmentId)
         .single();
 
@@ -527,6 +596,9 @@ export async function deletePhysioAttachment(attachmentId: string) {
         return { error: 'Erro ao excluir anexo' };
     }
 
+    if (attachment?.student_id) {
+        revalidatePath(`/dashboard/physiotherapist/patients/${attachment.student_id}`);
+    }
     revalidatePath('/dashboard/physiotherapist');
     return { success: true };
 }

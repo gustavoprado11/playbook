@@ -1003,10 +1003,13 @@ export interface PhysioAttachment {
     treatment_plan_id: string | null;
     student_id: string;
     file_path: string;
+    file_name: string | null;
     file_type: string;
     file_size: number | null;
     description: string | null;
     created_at: string;
+    /** URL assinada gerada sob demanda em listPhysioAttachments (bucket privado). */
+    signed_url?: string | null;
 }
 
 export interface CreatePhysioSessionInput {

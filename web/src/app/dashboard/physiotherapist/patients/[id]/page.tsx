@@ -1,4 +1,4 @@
-import { listMyPhysioPatients, listPhysioSessions, listTreatmentPlans, getPhysioSessionCounts, listPhysioEvolutions } from '@/app/actions/physio';
+import { listMyPhysioPatients, listPhysioSessions, listTreatmentPlans, getPhysioSessionCounts, listPhysioEvolutions, listPhysioAttachments } from '@/app/actions/physio';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
@@ -14,7 +14,7 @@ import { NewReferralDialog } from '@/components/referrals/new-referral-dialog';
 import { SharedNotesPanel } from '@/components/shared-notes/shared-notes-panel';
 import { PhysioStatusControl } from '@/components/physio/physio-status-control';
 import { PhysioEvolutionPanel } from '@/components/physio/physio-evolution-panel';
-import type { PhysioEvolution } from '@/types/database';
+import type { PhysioAttachment, PhysioEvolution } from '@/types/database';
 
 interface Props {
     params: Promise<{ id: string }>;
@@ -23,7 +23,7 @@ interface Props {
 export default async function PatientDetailPage({ params }: Props) {
     const { id } = await params;
 
-    const [patientsResult, sessionsResult, plansResult, clearanceHistory, sharedNotes, coProfessionals, profile, sessionCounts, evolutionsResult] = await Promise.all([
+    const [patientsResult, sessionsResult, plansResult, clearanceHistory, sharedNotes, coProfessionals, profile, sessionCounts, evolutionsResult, attachmentsResult] = await Promise.all([
         listMyPhysioPatients(),
         listPhysioSessions(id),
         listTreatmentPlans(id),
@@ -33,8 +33,10 @@ export default async function PatientDetailPage({ params }: Props) {
         getProfile(),
         getPhysioSessionCounts(id),
         listPhysioEvolutions(id),
+        listPhysioAttachments(id),
     ]);
     const evolutions = (evolutionsResult.data || []) as PhysioEvolution[];
+    const attachments = (attachmentsResult.data || []) as PhysioAttachment[];
 
     const link = patientsResult.data?.find((sp: any) => sp.student?.id === id);
     const patient = link?.student;
@@ -87,6 +89,7 @@ export default async function PatientDetailPage({ params }: Props) {
                 patient={patient}
                 sessions={sessionsResult.data || []}
                 treatmentPlans={plansResult.data || []}
+                attachments={attachments}
             />
 
             <div>
