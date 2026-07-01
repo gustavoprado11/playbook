@@ -398,19 +398,24 @@ export async function updateStudent(
 
     // Handle Status Change Logic
     if (data.status && data.status !== currentStudent.status) {
+        // Cancelamento pode ser retroativo: usa a data de saída real informada
+        // (default hoje). Vale tanto para o end_date quanto para o event_date,
+        // pra retenção e movimentação caírem no mês em que o aluno saiu de fato.
+        const cancellationDate = data.status === 'cancelled' ? (data.end_date || today) : today;
+
         // Status Event
         eventsToLog.push({
             student_id: studentId,
             event_type: 'status_change',
             old_value: { status: currentStudent.status },
             new_value: { status: data.status },
-            event_date: today,
+            event_date: cancellationDate,
             created_by: profile.id
         });
 
         if (data.status === 'cancelled') {
             // Ensure end_date is set
-            updates.end_date = data.end_date || today;
+            updates.end_date = cancellationDate;
             updates.paused_at = null;
         } else if (data.status === 'paused') {
             // Marca o início da carência de pausa (usado no KPI de retenção)

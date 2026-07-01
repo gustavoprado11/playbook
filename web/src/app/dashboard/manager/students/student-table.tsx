@@ -3,6 +3,7 @@
 import { useState, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 // Badge not used
 
 import {
@@ -59,6 +60,11 @@ import { updateStudent, archiveStudent, unarchiveStudent } from '@/app/actions/m
 import { EditStudentDialog } from './edit-student-dialog';
 import { TeamBadges } from '@/components/team-badges';
 
+function localTodayStr() {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 interface ExtendedStudent extends Student {
     trainer?: Trainer & { profile?: Profile };
     professionals?: Array<{
@@ -85,6 +91,8 @@ export function ManagerStudentTable({ students, trainers }: ManagerStudentTableP
     // Action State
     const [studentToArchive, setStudentToArchive] = useState<ExtendedStudent | null>(null);
     const [studentToEdit, setStudentToEdit] = useState<ExtendedStudent | null>(null);
+    const [studentToCancel, setStudentToCancel] = useState<ExtendedStudent | null>(null);
+    const [cancelDate, setCancelDate] = useState('');
 
     const toggleSort = (field: SortField) => {
         if (sortField === field) {
@@ -169,6 +177,25 @@ export function ManagerStudentTable({ students, trainers }: ManagerStudentTableP
         } catch (error) {
             console.error(error);
             alert('Erro ao atualizar status');
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const openCancelDialog = (student: ExtendedStudent) => {
+        setCancelDate(localTodayStr());
+        setStudentToCancel(student);
+    };
+
+    const handleCancel = async () => {
+        if (!studentToCancel || !cancelDate) return;
+        setIsLoading(true);
+        try {
+            await updateStudent(studentToCancel.id, { status: 'cancelled', end_date: cancelDate });
+            setStudentToCancel(null);
+        } catch (error) {
+            console.error(error);
+            alert('Erro ao cancelar matrícula');
         } finally {
             setIsLoading(false);
         }
@@ -375,7 +402,7 @@ export function ManagerStudentTable({ students, trainers }: ManagerStudentTableP
                                                     </DropdownMenuItem>
                                                 )}
                                                 {student.status !== 'cancelled' && (
-                                                    <DropdownMenuItem onClick={() => handleStatusChange(student, 'cancelled')}>
+                                                    <DropdownMenuItem onClick={() => openCancelDialog(student)}>
                                                         <UserX className="mr-2 h-4 w-4 text-red-600" />
                                                         Cancelar
                                                     </DropdownMenuItem>
@@ -423,6 +450,42 @@ export function ManagerStudentTable({ students, trainers }: ManagerStudentTableP
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
+
+            {/* Cancel Dialog — data de saída real */}
+            <Dialog open={!!studentToCancel} onOpenChange={(open) => !open && setStudentToCancel(null)}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Cancelar matrícula</DialogTitle>
+                        <DialogDescription>
+                            Informe a data em que <strong>{studentToCancel?.full_name}</strong> realmente
+                            saiu. O cancelamento entra na retenção do mês dessa data — use a data real de
+                            saída, não necessariamente hoje.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-2 py-2">
+                        <Label htmlFor="cancel-date">Data de saída</Label>
+                        <Input
+                            id="cancel-date"
+                            type="date"
+                            value={cancelDate}
+                            max={localTodayStr()}
+                            onChange={(e) => setCancelDate(e.target.value)}
+                        />
+                    </div>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setStudentToCancel(null)} disabled={isLoading}>
+                            Voltar
+                        </Button>
+                        <Button
+                            className="bg-red-600 hover:bg-red-700"
+                            onClick={handleCancel}
+                            disabled={isLoading || !cancelDate}
+                        >
+                            {isLoading ? 'Cancelando...' : 'Confirmar cancelamento'}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
 
             {/* Edit Dialog */}
             <EditStudentDialog
