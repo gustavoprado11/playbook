@@ -35,6 +35,7 @@ import {
 import { toast } from 'sonner';
 import { saveProgramTree } from '@/app/actions/prescription';
 import { ExercisePickerDialog, type PickResult } from './exercise-picker-dialog';
+import { AssignToStudentButton } from './assign-to-student-dialog';
 import type {
     Exercise,
     MovementPattern,
@@ -43,28 +44,29 @@ import type {
     WorkoutPhase,
     ProgramTemplateTree,
     ProgramTreeInput,
+    PrescribableStudent,
 } from '@/types/database';
 
-// ---------- constants ----------
-const PHASE_ORDER: WorkoutPhase[] = ['preparacao_movimento', 'potencia_forca', 'dse', 'regeneracao'];
-const PHASE_LABELS: Record<WorkoutPhase, string> = {
+// ---------- constants (shared with assigned-builder) ----------
+export const PHASE_ORDER: WorkoutPhase[] = ['preparacao_movimento', 'potencia_forca', 'dse', 'regeneracao'];
+export const PHASE_LABELS: Record<WorkoutPhase, string> = {
     preparacao_movimento: 'Preparação de Movimento',
     potencia_forca: 'Potência / Força',
     dse: 'DSE — Desenvolvimento de Sistemas Energéticos',
     regeneracao: 'Regeneração',
 };
-const RITUAL_SEED: { phase: WorkoutPhase; category_key: string }[] = [
+export const RITUAL_SEED: { phase: WorkoutPhase; category_key: string }[] = [
     { phase: 'preparacao_movimento', category_key: 'mobilidade' },
     { phase: 'preparacao_movimento', category_key: 'estabilidade' },
     { phase: 'preparacao_movimento', category_key: 'ativacao' },
     { phase: 'potencia_forca', category_key: 'forca' },
     { phase: 'dse', category_key: 'aerobio' },
 ];
-const DAY_LABELS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
-const NONE = 'none';
-const phaseIdx = (p: WorkoutPhase) => PHASE_ORDER.indexOf(p);
-const numStr = (n: number | null | undefined) => (n === null || n === undefined ? '' : String(n));
-const numOrNull = (s: string): number | null => {
+export const DAY_LABELS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+export const NONE = 'none';
+export const phaseIdx = (p: WorkoutPhase) => PHASE_ORDER.indexOf(p);
+export const numStr = (n: number | null | undefined) => (n === null || n === undefined ? '' : String(n));
+export const numOrNull = (s: string): number | null => {
     const t = s.trim();
     if (!t) return null;
     const n = Number(t);
@@ -72,12 +74,17 @@ const numOrNull = (s: string): number | null => {
 };
 
 // ---------- draft model ----------
-interface DraftSet {
+export interface DraftSet {
     key: string;
     reps: string; reps_max: string; each_side: boolean;
     load_kg: string; rir: string; tempo: string; rest_seconds: string;
     duration_seconds: string; distance_m: string; target_zone: string;
 }
+
+export const blankSetFields = (): Omit<DraftSet, 'key'> => ({
+    reps: '', reps_max: '', each_side: false, load_kg: '', rir: '', tempo: '',
+    rest_seconds: '', duration_seconds: '', distance_m: '', target_zone: '',
+});
 interface DraftItem {
     key: string;
     exercise_id: string | null;
@@ -114,9 +121,10 @@ interface ProgramBuilderProps {
     patterns: MovementPattern[];
     categories: BlockCategory[];
     methods: TrainingMethod[];
+    students?: PrescribableStudent[];
 }
 
-export function ProgramBuilder({ initial, exercises, patterns, categories, methods }: ProgramBuilderProps) {
+export function ProgramBuilder({ initial, exercises, patterns, categories, methods, students = [] }: ProgramBuilderProps) {
     const router = useRouter();
     const idRef = useRef(0);
     const mkKey = () => `k${idRef.current++}`;
@@ -347,10 +355,15 @@ export function ProgramBuilder({ initial, exercises, patterns, categories, metho
                         {draft.id ? 'Editar programa' : 'Novo programa'}
                     </h1>
                 </div>
-                <Button onClick={handleSave} disabled={isSaving}>
-                    <Save className="mr-2 h-4 w-4" />
-                    {isSaving ? 'Salvando...' : 'Salvar programa'}
-                </Button>
+                <div className="flex items-center gap-2">
+                    {draft.id && students.length > 0 && (
+                        <AssignToStudentButton templateId={draft.id} students={students} />
+                    )}
+                    <Button onClick={handleSave} disabled={isSaving}>
+                        <Save className="mr-2 h-4 w-4" />
+                        {isSaving ? 'Salvando...' : 'Salvar programa'}
+                    </Button>
+                </div>
             </div>
 
             {/* Program header */}
@@ -760,7 +773,7 @@ interface SetTableProps {
     onSetField: (setKey: string, field: keyof DraftSet, value: string | boolean) => void;
 }
 
-function SetTable({ sets, isDse, onAddSet, onRemoveSet, onSetField }: SetTableProps) {
+export function SetTable({ sets, isDse, onAddSet, onRemoveSet, onSetField }: SetTableProps) {
     const cell = 'h-7 text-xs px-1.5';
     return (
         <div className="space-y-1">

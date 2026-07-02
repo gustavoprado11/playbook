@@ -5,6 +5,7 @@ import {
     getCatalogTaxonomy,
     getTrainingMethods,
     getProgramTemplate,
+    getPrescribableStudents,
 } from '@/app/actions/prescription';
 import { ProgramBuilder } from '../program-builder';
 
@@ -16,11 +17,12 @@ export default async function EditProgramPage({ params }: { params: Promise<{ id
         redirect('/dashboard');
     }
 
-    const [tree, exercises, taxonomy, methods] = await Promise.all([
+    const [tree, exercises, taxonomy, methods, students] = await Promise.all([
         getProgramTemplate(id),
         getExercises(),
         getCatalogTaxonomy(),
         getTrainingMethods(),
+        getPrescribableStudents(),
     ]);
 
     if (!tree) notFound();
@@ -32,6 +34,7 @@ export default async function EditProgramPage({ params }: { params: Promise<{ id
             patterns={taxonomy.patterns}
             categories={taxonomy.categories}
             methods={methods}
+            students={students}
         />
     );
 }

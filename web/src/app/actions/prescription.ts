@@ -12,6 +12,13 @@ import type {
     ProgramTemplate,
     ProgramTemplateTree,
     ProgramTreeInput,
+    PrescribableStudent,
+    AssignedProgram,
+    AssignedProgramTree,
+    AssignedProgramTreeInput,
+    AssignedSessionInput,
+    AssignedBlockInput,
+    AssignedItemInput,
 } from '@/types/database';
 
 // Helper: ensure user is authenticated
@@ -275,4 +282,184 @@ export async function deleteProgramTemplate(id: string): Promise<void> {
     }
 
     revalidatePath('/dashboard/trainer/prescricao/programas');
+}
+
+// ==========================================
+// ASSIGNED PROGRAMS (A3) — instância por aluno
+// ==========================================
+
+// Alunos que o treinador pode prescrever (RLS/attends_student já filtra).
+export async function getPrescribableStudents(): Promise<PrescribableStudent[]> {
+    const { supabase } = await checkAuth();
+    const { data, error } = await supabase
+        .from('students')
+        .select('id, full_name, status')
+        .eq('status', 'active')
+        .order('full_name');
+    if (error) {
+        console.error('getPrescribableStudents', error);
+        return [];
+    }
+    return (data ?? []) as PrescribableStudent[];
+}
+
+export async function listStudentAssignments(studentId: string): Promise<AssignedProgram[]> {
+    const { supabase } = await checkAuth();
+    const { data, error } = await supabase
+        .from('assigned_programs')
+        .select('*, sessions:assigned_sessions(id)')
+        .eq('student_id', studentId)
+        .order('created_at', { ascending: false });
+    if (error) {
+        console.error('listStudentAssignments', error);
+        return [];
+    }
+    return (data ?? []) as AssignedProgram[];
+}
+
+export async function getAssignedProgram(id: string): Promise<AssignedProgramTree | null> {
+    const { supabase } = await checkAuth();
+    const { data, error } = await supabase
+        .from('assigned_programs')
+        .select(`
+            *,
+            sessions:assigned_sessions(
+                *,
+                blocks:assigned_blocks(
+                    *,
+                    items:assigned_items(
+                        *,
+                        sets:assigned_sets(*)
+                    )
+                )
+            )
+        `)
+        .eq('id', id)
+        .single();
+
+    if (error || !data) {
+        if (error && error.code !== 'PGRST116') console.error('getAssignedProgram', error);
+        return null;
+    }
+
+    const tree = data as AssignedProgramTree;
+    tree.sessions = (tree.sessions ?? []).sort((a, b) => a.order_index - b.order_index);
+    for (const s of tree.sessions) {
+        s.blocks = (s.blocks ?? []).sort((a, b) => a.order_index - b.order_index);
+        for (const b of s.blocks) {
+            b.items = (b.items ?? []).sort((a, b2) => a.order_index - b2.order_index);
+            for (const it of b.items) {
+                it.sets = (it.sets ?? []).sort((a, b3) => a.set_number - b3.set_number);
+            }
+        }
+    }
+    return tree;
+}
+
+export async function saveAssignedProgramTree(input: AssignedProgramTreeInput): Promise<string> {
+    const { supabase, user } = await checkAuth();
+    await assertTrainerOrManager(supabase, user.id);
+
+    if (!input.name?.trim()) throw new Error('Nome do programa é obrigatório');
+    if (!input.student_id) throw new Error('Aluno é obrigatório');
+
+    const { data, error } = await supabase.rpc('save_assigned_program_tree', { payload: input });
+    if (error) {
+        console.error('saveAssignedProgramTree', error);
+        if (error.message?.includes('Not allowed')) {
+            throw new Error('Você não atende este aluno');
+        }
+        throw new Error('Falha ao salvar o programa do aluno');
+    }
+
+    const assignedId = data as string;
+    revalidatePath(`/dashboard/trainer/prescricao/alunos/${input.student_id}`);
+    revalidatePath(`/dashboard/trainer/prescricao/alunos/${input.student_id}/${assignedId}`);
+    return assignedId;
+}
+
+// O coração do A3: copia o template p/ uma instância do aluno, tirando SNAPSHOTS
+// dos exercícios do catálogo NESTE momento. Uma RPC atômica.
+export async function assignProgramTemplate(templateId: string, studentId: string): Promise<string> {
+    const template = await getProgramTemplate(templateId);
+    if (!template) throw new Error('Template não encontrado');
+
+    const exercises = await getExercises();
+    const exMap = new Map(exercises.map((e) => [e.id, e]));
+
+    const input: AssignedProgramTreeInput = {
+        id: null,
+        student_id: studentId,
+        source_template_id: templateId,
+        name: template.name,
+        description: template.description,
+        goal: template.goal,
+        status: 'active',
+        sessions: (template.sessions ?? []).map<AssignedSessionInput>((s) => ({
+            name: s.name,
+            order_index: s.order_index,
+            scheduled_days: s.scheduled_days,
+            notes: s.notes,
+            blocks: (s.blocks ?? []).map<AssignedBlockInput>((b) => ({
+                phase: b.phase,
+                category_key: b.category_key,
+                order_index: b.order_index,
+                label: b.label,
+                notes: b.notes,
+                items: (b.items ?? []).map<AssignedItemInput>((it) => {
+                    const ex = it.exercise_id ? exMap.get(it.exercise_id) : undefined;
+                    return {
+                        exercise_id: it.exercise_id,
+                        exercise_name: ex?.name ?? it.custom_name ?? 'Exercício',
+                        movement_pattern_key: ex?.movement_pattern_key ?? null,
+                        primary_muscles: ex?.primary_muscles ?? [],
+                        secondary_muscles: ex?.secondary_muscles ?? [],
+                        video_url: ex?.video_url ?? null,
+                        cues: ex?.cues ?? null,
+                        custom_name: it.custom_name,
+                        group_label: it.group_label,
+                        order_index: it.order_index,
+                        method_key: it.method_key,
+                        rounds: it.rounds,
+                        notes: it.notes,
+                        sets: (it.sets ?? []).map((st) => ({
+                            set_number: st.set_number,
+                            set_type: st.set_type,
+                            reps: st.reps,
+                            reps_max: st.reps_max,
+                            each_side: st.each_side,
+                            load_kg: st.load_kg,
+                            rir: st.rir,
+                            tempo: st.tempo,
+                            rest_seconds: st.rest_seconds,
+                            round_number: st.round_number,
+                            duration_seconds: st.duration_seconds,
+                            distance_m: st.distance_m,
+                            target_zone: st.target_zone,
+                            notes: st.notes,
+                        })),
+                    };
+                }),
+            })),
+        })),
+    };
+
+    return saveAssignedProgramTree(input);
+}
+
+export async function archiveAssignedProgram(id: string, studentId: string): Promise<void> {
+    const { supabase, user } = await checkAuth();
+    await assertTrainerOrManager(supabase, user.id);
+
+    const { error } = await supabase
+        .from('assigned_programs')
+        .update({ status: 'archived' })
+        .eq('id', id);
+
+    if (error) {
+        console.error('archiveAssignedProgram', error);
+        throw new Error('Falha ao arquivar o programa do aluno');
+    }
+
+    revalidatePath(`/dashboard/trainer/prescricao/alunos/${studentId}`);
 }

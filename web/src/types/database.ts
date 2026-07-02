@@ -1248,3 +1248,145 @@ export interface ProgramTemplateTree extends ProgramTemplate {
     })[];
   })[];
 }
+
+// ==========================================
+// Assigned program tree (A3) — instância por aluno com SNAPSHOTS
+// ==========================================
+
+export interface PrescribableStudent {
+  id: string;
+  full_name: string;
+  status: string;
+}
+
+export interface AssignedProgram {
+  id: string;
+  student_id: string;
+  source_template_id: string | null;
+  name: string;
+  description: string | null;
+  goal: string | null;
+  status: 'active' | 'archived';
+  assigned_by: string | null;
+  start_date: string | null;
+  created_at: string;
+  updated_at: string;
+  // Joined
+  sessions?: AssignedSession[];
+}
+
+export interface AssignedSession {
+  id: string;
+  assigned_program_id: string;
+  name: string;
+  order_index: number;
+  scheduled_days: number[];
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+  blocks?: AssignedBlock[];
+}
+
+export interface AssignedBlock {
+  id: string;
+  assigned_session_id: string;
+  phase: WorkoutPhase;
+  category_key: string;
+  order_index: number;
+  label: string | null;
+  notes: string | null;
+  created_at: string;
+  items?: AssignedItem[];
+}
+
+export interface AssignedItem {
+  id: string;
+  assigned_block_id: string;
+  exercise_id: string | null;   // rastreio; snapshot abaixo é a fonte da verdade
+  exercise_name: string;        // snapshot
+  movement_pattern_key: string | null;
+  primary_muscles: string[];
+  secondary_muscles: string[];
+  video_url: string | null;
+  cues: string | null;
+  custom_name: string | null;
+  group_label: string | null;
+  order_index: number;
+  method_key: string | null;
+  rounds: number | null;
+  notes: string | null;
+  created_at: string;
+  sets?: AssignedSet[];
+}
+
+export interface AssignedSet {
+  id: string;
+  assigned_item_id: string;
+  set_number: number;
+  set_type: string | null;
+  reps: number | null;
+  reps_max: number | null;
+  each_side: boolean;
+  load_kg: number | null;
+  load_pct_1rm: number | null;
+  rir: number | null;
+  tempo: string | null;
+  rest_seconds: number | null;
+  round_number: number | null;
+  duration_seconds: number | null;
+  distance_m: number | null;
+  target_zone: string | null;
+  target_velocity_ms: number | null;
+  velocity_loss_pct: number | null;
+  notes: string | null;
+  created_at: string;
+}
+
+export interface AssignedProgramTree extends AssignedProgram {
+  sessions: (AssignedSession & {
+    blocks: (AssignedBlock & {
+      items: (AssignedItem & { sets: AssignedSet[] })[];
+    })[];
+  })[];
+}
+
+// Input DTOs para save_assigned_program_tree (migr 048)
+export interface AssignedItemInput extends ItemInput {
+  exercise_name: string;                 // snapshot obrigatório
+  movement_pattern_key?: string | null;
+  primary_muscles?: string[];
+  secondary_muscles?: string[];
+  video_url?: string | null;
+  cues?: string | null;
+}
+
+export interface AssignedBlockInput {
+  id?: string | null;
+  phase: WorkoutPhase;
+  category_key: string;
+  order_index?: number;
+  label?: string | null;
+  notes?: string | null;
+  items: AssignedItemInput[];
+}
+
+export interface AssignedSessionInput {
+  id?: string | null;
+  name: string;
+  order_index?: number;
+  scheduled_days?: number[];
+  notes?: string | null;
+  blocks: AssignedBlockInput[];
+}
+
+export interface AssignedProgramTreeInput {
+  id?: string | null;
+  student_id: string;
+  source_template_id?: string | null;
+  name: string;
+  description?: string | null;
+  goal?: string | null;
+  status?: 'active' | 'archived';
+  start_date?: string | null;
+  sessions: AssignedSessionInput[];
+}
