@@ -65,6 +65,7 @@ export function Sidebar({ role, userName, professionType, messagesCount = 0 }: S
         { href: '/dashboard/trainer/students', label: 'Meus Alunos', icon: Contact },
         { href: '/dashboard/trainer/attendance', label: 'Agenda', icon: Clock },
         { href: '/dashboard/trainer/results/types', label: 'Protocolos', icon: TrendingUp },
+        { href: '/dashboard/trainer/prescricao', label: 'Prescrição de Treino', icon: Dumbbell },
         messagesLink,
     ];
 
@@ -86,9 +87,7 @@ export function Sidebar({ role, userName, professionType, messagesCount = 0 }: S
     ];
 
     // Evolution items (disabled)
-    const evolutionItems: NavItem[] = [
-        { label: 'Prescrição de Treino', icon: Dumbbell, disabled: true },
-    ];
+    const evolutionItems: NavItem[] = [];
 
     const getActiveLinks = () => {
         if (role === 'manager') return managerActiveLinks;
@@ -181,6 +180,9 @@ export function Sidebar({ role, userName, professionType, messagesCount = 0 }: S
                         })}
                     </div>
 
+                    {/* Evolution section — only render when there are items */}
+                    {evolutionItems.length > 0 && (
+                    <>
                     {/* Divider with label */}
                     <div className="my-6 flex items-center gap-2">
                         <div className="h-px flex-1 bg-zinc-200" />
@@ -229,6 +231,8 @@ export function Sidebar({ role, userName, professionType, messagesCount = 0 }: S
                             );
                         })}
                     </div>
+                    </>
+                    )}
                 </nav>
 
                 <div className="border-t border-zinc-200 p-4">

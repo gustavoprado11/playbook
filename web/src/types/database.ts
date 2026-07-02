@@ -1165,3 +1165,20 @@ export interface SetTemplate {
   notes: string | null;
   created_at: string;
 }
+
+// Exercise catalog DTOs (A1) — hand-written, no Zod
+export interface CreateExerciseInput {
+  name: string;
+  movement_pattern_key?: string | null;
+  default_category_key?: string | null;
+  primary_muscles?: string[];
+  secondary_muscles?: string[];
+  equipment?: string | null;
+  difficulty?: 'beginner' | 'intermediate' | 'advanced' | null;
+  video_url?: string | null;
+  cues?: string | null;
+}
+
+export interface UpdateExerciseInput extends CreateExerciseInput {
+  id: string;
+}
