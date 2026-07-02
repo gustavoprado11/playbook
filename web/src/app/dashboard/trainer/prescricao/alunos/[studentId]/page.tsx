@@ -1,49 +1,12 @@
-import { redirect, notFound } from 'next/navigation';
-import { createClient } from '@/lib/supabase/server';
-import { getProfile } from '@/app/actions/auth';
-import {
-    listStudentAssignments,
-    listProgramTemplates,
-    listWorkoutLogs,
-    getStudentSessionsForLog,
-} from '@/app/actions/prescription';
-import { getActiveClearances } from '@/app/actions/clearances';
-import { StudentPrescription } from './student-prescription';
+import { redirect } from 'next/navigation';
 
-export default async function StudentPrescriptionPage({ params }: { params: Promise<{ studentId: string }> }) {
+// A prescrição por aluno agora vive no dashboard do aluno (Meus Alunos → aba "Prescrição de Treino").
+// Mantido como redirect para links/back-buttons antigos.
+export default async function LegacyStudentPrescriptionRedirect({
+    params,
+}: {
+    params: Promise<{ studentId: string }>;
+}) {
     const { studentId } = await params;
-
-    const profile = await getProfile();
-    if (!profile || profile.role !== 'trainer') {
-        redirect('/dashboard');
-    }
-
-    const supabase = await createClient();
-    const { data: student } = await supabase
-        .from('students')
-        .select('id, full_name')
-        .eq('id', studentId)
-        .single();
-
-    if (!student) notFound();
-
-    const [assignments, templates, logs, sessionsForLog, clearances] = await Promise.all([
-        listStudentAssignments(studentId),
-        listProgramTemplates(),
-        listWorkoutLogs(studentId),
-        getStudentSessionsForLog(studentId),
-        getActiveClearances(studentId),
-    ]);
-
-    return (
-        <StudentPrescription
-            studentId={student.id}
-            studentName={student.full_name}
-            assignments={assignments}
-            templates={templates}
-            logs={logs}
-            sessionsForLog={sessionsForLog}
-            clearances={clearances}
-        />
-    );
+    redirect(`/dashboard/trainer/students/${studentId}?tab=prescription`);
 }

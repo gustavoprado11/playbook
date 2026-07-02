@@ -24,6 +24,7 @@ import type {
     WorkoutLogInput,
     SetLogInput,
     StudentSessionForLog,
+    WorkoutPhase,
 } from '@/types/database';
 
 // Helper: ensure user is authenticated
@@ -449,6 +450,43 @@ export async function assignProgramTemplate(templateId: string, studentId: strin
         })),
     };
 
+    return saveAssignedProgramTree(input);
+}
+
+// Cria um programa NOVO (do zero) direto para o aluno, já pré-montado com as
+// faixas do ritual Exos (uma sessão vazia). Retorna o assignedId para abrir o builder.
+const RITUAL_SEED_BLOCKS: { phase: WorkoutPhase; category_key: string }[] = [
+    { phase: 'preparacao_movimento', category_key: 'mobilidade' },
+    { phase: 'preparacao_movimento', category_key: 'estabilidade' },
+    { phase: 'preparacao_movimento', category_key: 'ativacao' },
+    { phase: 'potencia_forca', category_key: 'forca' },
+    { phase: 'dse', category_key: 'aerobio' },
+];
+
+export async function createDraftAssignedProgram(studentId: string): Promise<string> {
+    const input: AssignedProgramTreeInput = {
+        id: null,
+        student_id: studentId,
+        source_template_id: null,
+        name: 'Novo programa',
+        description: null,
+        goal: null,
+        status: 'active',
+        sessions: [{
+            name: 'Treino A',
+            order_index: 0,
+            scheduled_days: [],
+            notes: null,
+            blocks: RITUAL_SEED_BLOCKS.map<AssignedBlockInput>((s, i) => ({
+                phase: s.phase,
+                category_key: s.category_key,
+                order_index: i,
+                label: null,
+                notes: null,
+                items: [],
+            })),
+        }],
+    };
     return saveAssignedProgramTree(input);
 }
 

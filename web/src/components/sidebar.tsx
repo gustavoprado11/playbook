@@ -17,7 +17,7 @@ import {
     TrendingUp,
     ClipboardList,
     FileText,
-    Dumbbell,
+    Library,
     CircleDollarSign,
     UtensilsCrossed,
     Activity,
@@ -65,7 +65,7 @@ export function Sidebar({ role, userName, professionType, messagesCount = 0 }: S
         { href: '/dashboard/trainer/students', label: 'Meus Alunos', icon: Contact },
         { href: '/dashboard/trainer/attendance', label: 'Agenda', icon: Clock },
         { href: '/dashboard/trainer/results/types', label: 'Protocolos', icon: TrendingUp },
-        { href: '/dashboard/trainer/prescricao', label: 'Prescrição de Treino', icon: Dumbbell },
+        { href: '/dashboard/trainer/prescricao', label: 'Biblioteca', icon: Library },
         messagesLink,
     ];
 

@@ -22,7 +22,7 @@ import {
 } from '@/components/ui/dialog';
 import { ArrowLeft, Plus, MoreVertical, Pencil, Archive, Search, ClipboardList, Activity, ChevronRight } from 'lucide-react';
 import { toast } from 'sonner';
-import { assignProgramTemplate, archiveAssignedProgram, startWorkoutLog } from '@/app/actions/prescription';
+import { assignProgramTemplate, archiveAssignedProgram, startWorkoutLog, createDraftAssignedProgram } from '@/app/actions/prescription';
 import { ClearanceBanner } from '@/components/clearances/clearance-banner';
 import type { AssignedProgram, ProgramTemplate, WorkoutLog, StudentSessionForLog, StudentClearance } from '@/types/database';
 
@@ -39,10 +39,11 @@ interface StudentPrescriptionProps {
     templates: ProgramTemplate[];
     logs: WorkoutLog[];
     sessionsForLog: StudentSessionForLog[];
-    clearances: StudentClearance[];
+    clearances?: StudentClearance[];
+    embedded?: boolean;
 }
 
-export function StudentPrescription({ studentId, studentName, assignments, templates, logs, sessionsForLog, clearances }: StudentPrescriptionProps) {
+export function StudentPrescription({ studentId, studentName, assignments, templates, logs, sessionsForLog, clearances, embedded }: StudentPrescriptionProps) {
     const router = useRouter();
     const [assignOpen, setAssignOpen] = useState(false);
     const [search, setSearch] = useState('');
@@ -50,6 +51,20 @@ export function StudentPrescription({ studentId, studentName, assignments, templ
     const [archivingId, setArchivingId] = useState<string | null>(null);
     const [logOpen, setLogOpen] = useState(false);
     const [startingId, setStartingId] = useState<string | null>(null);
+    const [creatingNew, setCreatingNew] = useState(false);
+
+    const handleCreateNew = async () => {
+        setCreatingNew(true);
+        try {
+            const assignedId = await createDraftAssignedProgram(studentId);
+            toast.success('Programa criado');
+            router.push(`/dashboard/trainer/prescricao/alunos/${studentId}/${assignedId}`);
+        } catch (err) {
+            console.error(err);
+            toast.error(err instanceof Error ? err.message : 'Erro ao criar programa');
+            setCreatingNew(false);
+        }
+    };
 
     const handleStartLog = async (assignedSessionId: string) => {
         setStartingId(assignedSessionId);
@@ -97,35 +112,50 @@ export function StudentPrescription({ studentId, studentName, assignments, templ
         }
     };
 
+    const actionButtons = (
+        <>
+            {sessionsForLog.length > 0 && (
+                <Button variant="outline" onClick={() => setLogOpen(true)}>
+                    <Activity className="mr-2 h-4 w-4" />
+                    Registrar execução
+                </Button>
+            )}
+            <Button variant="outline" onClick={() => setAssignOpen(true)}>
+                <Plus className="mr-2 h-4 w-4" />
+                Atribuir template
+            </Button>
+            <Button onClick={handleCreateNew} disabled={creatingNew}>
+                <Plus className="mr-2 h-4 w-4" />
+                {creatingNew ? 'Criando...' : 'Novo programa'}
+            </Button>
+        </>
+    );
+
     return (
         <div className="space-y-6">
-            <div className="flex items-center justify-between gap-4">
-                <div className="flex items-center gap-3">
-                    <Link href="/dashboard/trainer/prescricao/alunos">
-                        <Button variant="ghost" size="icon" className="h-9 w-9">
-                            <ArrowLeft className="h-5 w-5" />
-                        </Button>
-                    </Link>
-                    <div>
-                        <h1 className="text-2xl font-bold text-zinc-900">{studentName}</h1>
-                        <p className="text-sm text-zinc-500">Programas de treino do aluno</p>
+            {embedded ? (
+                <div className="flex flex-wrap items-center justify-end gap-2">
+                    {actionButtons}
+                </div>
+            ) : (
+                <>
+                    <div className="flex items-center justify-between gap-4">
+                        <div className="flex items-center gap-3">
+                            <Link href="/dashboard/trainer/students">
+                                <Button variant="ghost" size="icon" className="h-9 w-9">
+                                    <ArrowLeft className="h-5 w-5" />
+                                </Button>
+                            </Link>
+                            <div>
+                                <h1 className="text-2xl font-bold text-zinc-900">{studentName}</h1>
+                                <p className="text-sm text-zinc-500">Programas de treino do aluno</p>
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-2">{actionButtons}</div>
                     </div>
-                </div>
-                <div className="flex items-center gap-2">
-                    {sessionsForLog.length > 0 && (
-                        <Button variant="outline" onClick={() => setLogOpen(true)}>
-                            <Activity className="mr-2 h-4 w-4" />
-                            Registrar execução
-                        </Button>
-                    )}
-                    <Button onClick={() => setAssignOpen(true)}>
-                        <Plus className="mr-2 h-4 w-4" />
-                        Atribuir template
-                    </Button>
-                </div>
-            </div>
-
-            <ClearanceBanner clearances={clearances} />
+                    {clearances && <ClearanceBanner clearances={clearances} />}
+                </>
+            )}
 
             <Card>
                 <CardHeader>
@@ -136,7 +166,7 @@ export function StudentPrescription({ studentId, studentName, assignments, templ
                 <CardContent>
                     {assignments.length === 0 ? (
                         <p className="py-12 text-center text-sm text-zinc-500">
-                            Nenhum programa atribuído. Clique em &quot;Atribuir template&quot; para começar.
+                            Nenhum programa ainda. Clique em &quot;Novo programa&quot; para montar do zero, ou &quot;Atribuir template&quot; para partir de um modelo.
                         </p>
                     ) : (
                         <div className="overflow-x-auto">

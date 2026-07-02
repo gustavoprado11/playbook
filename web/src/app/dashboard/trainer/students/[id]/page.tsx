@@ -10,6 +10,8 @@ import { ArchiveStudentButton } from './components/archive-student-button';
 import { StudentHeader } from './components/student-header';
 import { ProtocolTimeline } from './components/protocol-timeline';
 import { StudentDetailTabs } from '@/components/integrated/student-detail-tabs';
+import { StudentPrescription } from '@/app/dashboard/trainer/prescricao/alunos/[studentId]/student-prescription';
+import { listStudentAssignments, listProgramTemplates, listWorkoutLogs, getStudentSessionsForLog } from '@/app/actions/prescription';
 import { getProfile } from '@/app/actions/auth';
 import { getActiveClearances } from '@/app/actions/clearances';
 import { getSharedNotes } from '@/app/actions/shared-notes';
@@ -18,8 +20,9 @@ import { ClearanceBanner } from '@/components/clearances/clearance-banner';
 import { SharedNotesPanel } from '@/components/shared-notes/shared-notes-panel';
 import { NewReferralDialog } from '@/components/referrals/new-referral-dialog';
 
-export default async function StudentDetailsPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function StudentDetailsPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ tab?: string }> }) {
     const { id } = await params;
+    const { tab } = await searchParams;
     const supabase = await createClient();
 
     // Fetch student details
@@ -34,7 +37,7 @@ export default async function StudentDetailsPage({ params }: { params: Promise<{
     }
 
     // Parallel fetch
-    const [protocols, assessments, integratedView, activeClearances, sharedNotes, coProfessionals, profile] = await Promise.all([
+    const [protocols, assessments, integratedView, activeClearances, sharedNotes, coProfessionals, profile, assignments, templates, workoutLogs, sessionsForLog] = await Promise.all([
         getProtocols(),
         getStudentAssessments(id),
         getStudentIntegratedView(id),
@@ -42,7 +45,24 @@ export default async function StudentDetailsPage({ params }: { params: Promise<{
         getSharedNotes(id),
         getCoProfessionals(id),
         getProfile(),
+        listStudentAssignments(id),
+        listProgramTemplates(),
+        listWorkoutLogs(id),
+        getStudentSessionsForLog(id),
     ]);
+
+    // Prescrição de Treino tab content (embedded — the page already shows the header + clearance banner)
+    const prescriptionContent = (
+        <StudentPrescription
+            embedded
+            studentId={student.id}
+            studentName={student.full_name}
+            assignments={assignments}
+            templates={templates}
+            logs={workoutLogs}
+            sessionsForLog={sessionsForLog}
+        />
+    );
 
     // Process Data
     const groups = processAssessmentHistory(assessments);
@@ -111,8 +131,10 @@ export default async function StudentDetailsPage({ params }: { params: Promise<{
 
             {/* Tabs */}
             <StudentDetailTabs
+                prescriptionContent={prescriptionContent}
                 trainingContent={trainingContent}
                 integratedView={integratedView}
+                initialTab={tab}
             />
 
             {/* Notas compartilhadas */}

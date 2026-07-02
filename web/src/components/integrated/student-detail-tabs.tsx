@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
-import { Dumbbell, UtensilsCrossed, Activity, Globe } from 'lucide-react';
+import { Dumbbell, UtensilsCrossed, Activity, Globe, TrendingUp } from 'lucide-react';
 import { IntegratedTimeline } from './integrated-timeline';
 import { DisciplineSummaryCard } from './discipline-summary-card';
 import { NutritionReadonlyView } from './nutrition-readonly-view';
@@ -10,7 +10,7 @@ import { PhysioReadonlyView } from './physio-readonly-view';
 import { CrossAlerts } from './cross-alerts';
 import type { IntegratedStudentView } from '@/app/actions/integrated';
 
-type TabKey = 'training' | 'nutrition' | 'physio' | '360';
+type TabKey = 'prescription' | 'training' | 'nutrition' | 'physio' | '360';
 
 interface TabDef {
     key: TabKey;
@@ -19,19 +19,26 @@ interface TabDef {
 }
 
 const tabs: TabDef[] = [
-    { key: 'training', label: 'Treino', icon: Dumbbell },
+    { key: 'prescription', label: 'Prescrição de Treino', icon: Dumbbell },
+    { key: 'training', label: 'Evolução', icon: TrendingUp },
     { key: 'nutrition', label: 'Nutrição', icon: UtensilsCrossed },
     { key: 'physio', label: 'Fisioterapia', icon: Activity },
     { key: '360', label: 'Visão 360°', icon: Globe },
 ];
 
 interface StudentDetailTabsProps {
+    prescriptionContent?: React.ReactNode;
     trainingContent: React.ReactNode;
     integratedView: IntegratedStudentView | null;
+    initialTab?: string;
 }
 
-export function StudentDetailTabs({ trainingContent, integratedView }: StudentDetailTabsProps) {
-    const [activeTab, setActiveTab] = useState<TabKey>('training');
+export function StudentDetailTabs({ prescriptionContent, trainingContent, integratedView, initialTab }: StudentDetailTabsProps) {
+    // A aba de prescrição só existe quando há conteúdo (trainer-facing; manager não prescreve).
+    const visibleTabs = prescriptionContent ? tabs : tabs.filter((t) => t.key !== 'prescription');
+    const defaultTab: TabKey = prescriptionContent ? 'prescription' : 'training';
+    const startTab: TabKey = visibleTabs.some((t) => t.key === initialTab) ? (initialTab as TabKey) : defaultTab;
+    const [activeTab, setActiveTab] = useState<TabKey>(startTab);
 
     const nutritionCount = integratedView
         ? integratedView.nutrition.recentConsultations.length + integratedView.nutrition.activeMealPlans.length
@@ -51,7 +58,7 @@ export function StudentDetailTabs({ trainingContent, integratedView }: StudentDe
         <div className="space-y-6">
             {/* Tab bar */}
             <div className="flex gap-1 border-b border-zinc-200 overflow-x-auto">
-                {tabs.map(tab => {
+                {visibleTabs.map(tab => {
                     const Icon = tab.icon;
                     const count = getCounts(tab.key);
                     const isActive = activeTab === tab.key;
@@ -83,6 +90,8 @@ export function StudentDetailTabs({ trainingContent, integratedView }: StudentDe
             </div>
 
             {/* Tab content */}
+            {activeTab === 'prescription' && prescriptionContent}
+
             {activeTab === 'training' && trainingContent}
 
             {activeTab === 'nutrition' && (

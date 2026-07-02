@@ -338,7 +338,12 @@ export function StudentTable({ students, assessmentMap, trainers = [] }: Student
                                 <TableRow key={student.id} className="group hover:bg-zinc-50/50">
                                     <TableCell className="font-medium text-zinc-900">
                                         <div className="flex flex-col">
-                                            <span>{student.full_name}</span>
+                                            <Link
+                                                href={`/dashboard/trainer/students/${student.id}`}
+                                                className="w-fit hover:text-emerald-700 hover:underline"
+                                            >
+                                                {student.full_name}
+                                            </Link>
                                             <span className="text-xs text-zinc-500 font-normal">
                                                 Início: {new Date(student.start_date).toLocaleDateString()}
                                             </span>
@@ -413,13 +418,13 @@ export function StudentTable({ students, assessmentMap, trainers = [] }: Student
                                                 </Button>
                                             </DropdownMenuTrigger>
                                             <DropdownMenuContent align="end" className="bg-white">
-                                                <Link href={`/dashboard/trainer/students/${student.id}`}>
+                                                <Link href={`/dashboard/trainer/students/${student.id}?tab=training`}>
                                                     <DropdownMenuItem>
                                                         <History className="mr-2 h-4 w-4" />
                                                         Ver Histórico
                                                     </DropdownMenuItem>
                                                 </Link>
-                                                <Link href={`/dashboard/trainer/students/${student.id}?action=new-assessment`}>
+                                                <Link href={`/dashboard/trainer/students/${student.id}?tab=training`}>
                                                     <DropdownMenuItem>
                                                         <PlusCircle className="mr-2 h-4 w-4" />
                                                         Nova Avaliação
