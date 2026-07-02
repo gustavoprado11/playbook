@@ -1035,3 +1035,133 @@ export interface CreateTreatmentPlanInput {
     modalities?: PhysioModality[];
     notes?: string;
 }
+
+// =====================================================
+// Workout Prescription Module (A0) — matches migrations 042/043
+// =====================================================
+
+// Fase = ritual de ordem fixa (Exos). Categoria (block_categories) é escopada por fase.
+export type WorkoutPhase = 'preparacao_movimento' | 'potencia_forca' | 'dse' | 'regeneracao';
+
+export type ExerciseDifficulty = 'beginner' | 'intermediate' | 'advanced';
+
+export interface MovementPattern {
+  pattern_key: string;
+  label: string;
+  display_order: number;
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface BlockCategory {
+  category_key: string;
+  phase: WorkoutPhase;
+  label: string;
+  display_order: number;
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface TrainingMethod {
+  method_key: string;
+  label: string;
+  description: string | null;
+  display_order: number;
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface Exercise {
+  id: string;
+  name: string;
+  movement_pattern_key: string | null;
+  default_category_key: string | null;
+  primary_muscles: string[];
+  secondary_muscles: string[];
+  equipment: string | null;
+  difficulty: ExerciseDifficulty | null;
+  video_url: string | null;
+  cues: string | null;
+  is_active: boolean;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ProgramTemplate {
+  id: string;
+  name: string;
+  description: string | null;
+  goal: string | null;
+  is_active: boolean;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+  // Joined fields
+  sessions?: SessionTemplate[];
+}
+
+export interface SessionTemplate {
+  id: string;
+  program_template_id: string;
+  name: string;
+  order_index: number;
+  scheduled_days: number[];
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+  // Joined fields
+  blocks?: BlockTemplate[];
+}
+
+export interface BlockTemplate {
+  id: string;
+  session_template_id: string;
+  phase: WorkoutPhase;
+  category_key: string;
+  order_index: number;
+  label: string | null;
+  notes: string | null;
+  created_at: string;
+  // Joined fields
+  items?: ItemTemplate[];
+}
+
+export interface ItemTemplate {
+  id: string;
+  block_template_id: string;
+  exercise_id: string | null;
+  custom_name: string | null;
+  group_label: string | null;
+  order_index: number;
+  method_key: string | null;
+  rounds: number | null;
+  notes: string | null;
+  created_at: string;
+  // Joined fields
+  exercise?: Exercise;
+  sets?: SetTemplate[];
+}
+
+export interface SetTemplate {
+  id: string;
+  item_template_id: string;
+  set_number: number;
+  set_type: string | null;
+  reps: number | null;
+  reps_max: number | null;
+  each_side: boolean;
+  load_kg: number | null;
+  load_pct_1rm: number | null;
+  rir: number | null;
+  tempo: string | null;
+  rest_seconds: number | null;
+  round_number: number | null;
+  duration_seconds: number | null;
+  distance_m: number | null;
+  target_zone: string | null;
+  target_velocity_ms: number | null;
+  velocity_loss_pct: number | null;
+  notes: string | null;
+  created_at: string;
+}
