@@ -22,10 +22,11 @@ import {
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import {
-    ArrowLeft, Save, Plus, Trash2, ChevronUp, ChevronDown, ChevronRight, Repeat,
+    ArrowLeft, Save, Plus, Trash2, ChevronUp, ChevronDown, ChevronRight, Repeat, FileDown,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { saveAssignedProgramTree } from '@/app/actions/prescription';
+import { exportAssignedProgramPDF } from '@/lib/export-utils';
 import { ExercisePickerDialog, type PickResult } from '../programas/exercise-picker-dialog';
 import {
     PHASE_ORDER, PHASE_LABELS, RITUAL_SEED, DAY_LABELS, NONE,
@@ -304,10 +305,16 @@ export function AssignedBuilder({ initial, studentName, exercises, patterns, cat
                         <p className="text-sm text-zinc-500">{studentName}</p>
                     </div>
                 </div>
-                <Button onClick={handleSave} disabled={isSaving}>
-                    <Save className="mr-2 h-4 w-4" />
-                    {isSaving ? 'Salvando...' : 'Salvar programa'}
-                </Button>
+                <div className="flex items-center gap-2">
+                    <Button variant="outline" onClick={() => exportAssignedProgramPDF(initial, studentName)}>
+                        <FileDown className="mr-2 h-4 w-4" />
+                        Exportar PDF
+                    </Button>
+                    <Button onClick={handleSave} disabled={isSaving}>
+                        <Save className="mr-2 h-4 w-4" />
+                        {isSaving ? 'Salvando...' : 'Salvar programa'}
+                    </Button>
+                </div>
             </div>
 
             <Card>

@@ -9,6 +9,7 @@ import type {
     StudentEvolutionReport,
 } from '@/app/actions/reports';
 import type { CrossDisciplineKPIs } from '@/app/actions/kpis';
+import type { AssignedProgramTree, AssignedSet, WorkoutPhase } from '@/types/database';
 
 const HEADER_COLOR = '#059669'; // emerald-600
 
@@ -370,4 +371,84 @@ export async function exportKPIsXLSX(kpis: CrossDisciplineKPIs) {
 
     const buf = await wb.xlsx.writeBuffer();
     saveAs(new Blob([buf]), `kpis-interdisciplinares-${kpis.referenceDate}.xlsx`);
+}
+
+// =====================================================
+// PRESCRIÇÃO ATRIBUÍDA (A4) — PDF p/ o coach entregar ao aluno
+// =====================================================
+
+const PDF_DAY_LABELS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+const PDF_PHASE_LABELS: Record<WorkoutPhase, string> = {
+    preparacao_movimento: 'Prep. Movimento',
+    potencia_forca: 'Potência / Força',
+    dse: 'DSE',
+    regeneracao: 'Regeneração',
+};
+
+function prescriptionCell(phase: string | null, st: AssignedSet): string {
+    if (phase === 'dse') {
+        const parts: string[] = [];
+        if (st.duration_seconds != null) parts.push(`${st.duration_seconds}s`);
+        if (st.distance_m != null) parts.push(`${st.distance_m}m`);
+        if (st.target_zone) parts.push(st.target_zone);
+        return parts.join(' / ') || '—';
+    }
+    const reps = st.reps != null ? (st.reps_max != null ? `${st.reps}–${st.reps_max}` : `${st.reps}`) : '';
+    const ea = st.each_side ? ' ea.' : '';
+    const load = st.load_kg != null ? ` × ${st.load_kg}kg` : '';
+    const out = `${reps}${ea}${load}`.trim();
+    return out || '—';
+}
+
+export function exportAssignedProgramPDF(program: AssignedProgramTree, studentName: string) {
+    const doc = new jsPDF();
+    pdfHeader(doc, `Prescrição — ${studentName}`, program.goal ? `${program.name} · ${program.goal}` : program.name);
+
+    let y = 44;
+    const sessions = [...(program.sessions ?? [])].sort((a, b) => a.order_index - b.order_index);
+
+    for (const s of sessions) {
+        if (y > doc.internal.pageSize.height - 40) { doc.addPage(); y = 20; }
+        doc.setFontSize(11);
+        doc.setTextColor('#18181b');
+        const days = (s.scheduled_days ?? []).map((d) => PDF_DAY_LABELS[d]).filter(Boolean).join(', ');
+        doc.text(`${s.name}${days ? `  (${days})` : ''}`, 14, y);
+        y += 3;
+
+        const rows: (string)[][] = [];
+        const blocks = [...(s.blocks ?? [])].sort((a, b) => a.order_index - b.order_index);
+        for (const b of blocks) {
+            const items = [...(b.items ?? [])].sort((a, b2) => a.order_index - b2.order_index);
+            for (const it of items) {
+                const sets = [...(it.sets ?? [])].sort((a, b3) => (a.set_number ?? 0) - (b3.set_number ?? 0));
+                sets.forEach((st, idx) => {
+                    rows.push([
+                        idx === 0 ? `${PDF_PHASE_LABELS[b.phase]}\n${b.category_key}` : '',
+                        idx === 0 ? `${it.exercise_name}${it.group_label ? ` (${it.group_label})` : ''}` : '',
+                        String(st.set_number ?? idx + 1),
+                        prescriptionCell(b.phase, st),
+                        st.rest_seconds != null ? `${st.rest_seconds}s` : '',
+                        '', // "Realizado" — espaço p/ anotação manual do aluno/coach
+                    ]);
+                });
+            }
+        }
+
+        if (rows.length === 0) {
+            rows.push(['', 'Sem exercícios nesta sessão', '', '', '', '']);
+        }
+
+        autoTable(doc, {
+            startY: y,
+            head: [['Fase / Categoria', 'Exercício', 'Sér.', 'Prescrito', 'Desc.', 'Realizado']],
+            body: rows,
+            headStyles: { fillColor: HEADER_COLOR },
+            styles: { fontSize: 8, cellPadding: 2 },
+            columnStyles: { 0: { cellWidth: 30 }, 2: { cellWidth: 10 }, 5: { cellWidth: 32 } },
+        });
+        y = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 10;
+    }
+
+    pdfFooter(doc);
+    doc.save(`prescricao-${studentName.replace(/\s+/g, '-').toLowerCase()}.pdf`);
 }

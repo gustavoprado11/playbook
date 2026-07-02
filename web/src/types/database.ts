@@ -1390,3 +1390,96 @@ export interface AssignedProgramTreeInput {
   start_date?: string | null;
   sessions: AssignedSessionInput[];
 }
+
+// ==========================================
+// Workout logs (A4) — execução coach-facing (imutável, snapshot do prescrito)
+// ==========================================
+
+export interface SetLog {
+  id: string;
+  workout_log_id: string;
+  assigned_set_id: string | null;
+  exercise_name: string;
+  group_label: string | null;
+  phase: string | null;
+  category_key: string | null;
+  set_number: number | null;
+  planned_reps: number | null;
+  planned_reps_max: number | null;
+  planned_load_kg: number | null;
+  planned_duration_seconds: number | null;
+  planned_distance_m: number | null;
+  planned_target_zone: string | null;
+  reps_done: number | null;
+  load_kg_done: number | null;
+  duration_done_seconds: number | null;
+  distance_done_m: number | null;
+  rpe: number | null;
+  completed: boolean;
+  notes: string | null;
+  order_index: number;
+  created_at: string;
+}
+
+export interface WorkoutLog {
+  id: string;
+  student_id: string;
+  assigned_program_id: string | null;
+  assigned_session_id: string | null;
+  session_name: string | null;
+  performed_at: string;
+  overall_rpe: number | null;
+  notes: string | null;
+  logged_by: string | null;
+  created_at: string;
+  updated_at: string;
+  // Joined
+  sets?: SetLog[];
+}
+
+export interface WorkoutLogTree extends WorkoutLog {
+  sets: SetLog[];
+}
+
+export interface SetLogInput {
+  assigned_set_id?: string | null;
+  exercise_name: string;
+  group_label?: string | null;
+  phase?: string | null;
+  category_key?: string | null;
+  set_number?: number | null;
+  planned_reps?: number | null;
+  planned_reps_max?: number | null;
+  planned_load_kg?: number | null;
+  planned_duration_seconds?: number | null;
+  planned_distance_m?: number | null;
+  planned_target_zone?: string | null;
+  reps_done?: number | null;
+  load_kg_done?: number | null;
+  duration_done_seconds?: number | null;
+  distance_done_m?: number | null;
+  rpe?: number | null;
+  completed?: boolean;
+  notes?: string | null;
+  order_index?: number;
+}
+
+export interface WorkoutLogInput {
+  id?: string | null;
+  student_id: string;
+  assigned_program_id?: string | null;
+  assigned_session_id?: string | null;
+  session_name?: string | null;
+  performed_at?: string | null;
+  overall_rpe?: number | null;
+  notes?: string | null;
+  sets: SetLogInput[];
+}
+
+// Sessão atribuída achatada, p/ o dialog "Registrar execução".
+export interface StudentSessionForLog {
+  assigned_program_id: string;
+  program_name: string;
+  assigned_session_id: string;
+  session_name: string;
+}

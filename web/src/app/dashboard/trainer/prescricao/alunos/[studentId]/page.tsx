@@ -1,7 +1,12 @@
 import { redirect, notFound } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { getProfile } from '@/app/actions/auth';
-import { listStudentAssignments, listProgramTemplates } from '@/app/actions/prescription';
+import {
+    listStudentAssignments,
+    listProgramTemplates,
+    listWorkoutLogs,
+    getStudentSessionsForLog,
+} from '@/app/actions/prescription';
 import { StudentPrescription } from './student-prescription';
 
 export default async function StudentPrescriptionPage({ params }: { params: Promise<{ studentId: string }> }) {
@@ -21,9 +26,11 @@ export default async function StudentPrescriptionPage({ params }: { params: Prom
 
     if (!student) notFound();
 
-    const [assignments, templates] = await Promise.all([
+    const [assignments, templates, logs, sessionsForLog] = await Promise.all([
         listStudentAssignments(studentId),
         listProgramTemplates(),
+        listWorkoutLogs(studentId),
+        getStudentSessionsForLog(studentId),
     ]);
 
     return (
@@ -32,6 +39,8 @@ export default async function StudentPrescriptionPage({ params }: { params: Prom
             studentName={student.full_name}
             assignments={assignments}
             templates={templates}
+            logs={logs}
+            sessionsForLog={sessionsForLog}
         />
     );
 }

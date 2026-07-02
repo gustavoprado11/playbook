@@ -19,6 +19,11 @@ import type {
     AssignedSessionInput,
     AssignedBlockInput,
     AssignedItemInput,
+    WorkoutLog,
+    WorkoutLogTree,
+    WorkoutLogInput,
+    SetLogInput,
+    StudentSessionForLog,
 } from '@/types/database';
 
 // Helper: ensure user is authenticated
@@ -461,5 +466,153 @@ export async function archiveAssignedProgram(id: string, studentId: string): Pro
         throw new Error('Falha ao arquivar o programa do aluno');
     }
 
+    revalidatePath(`/dashboard/trainer/prescricao/alunos/${studentId}`);
+}
+
+// ==========================================
+// WORKOUT LOGS (A4) — execução coach-facing
+// ==========================================
+
+// Sessões atribuídas ativas do aluno (achatadas) p/ o dialog "Registrar execução".
+export async function getStudentSessionsForLog(studentId: string): Promise<StudentSessionForLog[]> {
+    const { supabase } = await checkAuth();
+    const { data, error } = await supabase
+        .from('assigned_programs')
+        .select('id, name, status, sessions:assigned_sessions(id, name, order_index)')
+        .eq('student_id', studentId)
+        .eq('status', 'active')
+        .order('name');
+    if (error) {
+        console.error('getStudentSessionsForLog', error);
+        return [];
+    }
+    const out: StudentSessionForLog[] = [];
+    for (const p of (data ?? []) as any[]) {
+        const sessions = [...(p.sessions ?? [])].sort((a, b) => a.order_index - b.order_index);
+        for (const s of sessions) {
+            out.push({ assigned_program_id: p.id, program_name: p.name, assigned_session_id: s.id, session_name: s.name });
+        }
+    }
+    return out;
+}
+
+export async function listWorkoutLogs(studentId: string): Promise<WorkoutLog[]> {
+    const { supabase } = await checkAuth();
+    const { data, error } = await supabase
+        .from('workout_logs')
+        .select('*, sets:set_logs(id, completed)')
+        .eq('student_id', studentId)
+        .order('performed_at', { ascending: false });
+    if (error) {
+        console.error('listWorkoutLogs', error);
+        return [];
+    }
+    return (data ?? []) as WorkoutLog[];
+}
+
+export async function getWorkoutLog(id: string): Promise<WorkoutLogTree | null> {
+    const { supabase } = await checkAuth();
+    const { data, error } = await supabase
+        .from('workout_logs')
+        .select('*, sets:set_logs(*)')
+        .eq('id', id)
+        .single();
+    if (error || !data) {
+        if (error && error.code !== 'PGRST116') console.error('getWorkoutLog', error);
+        return null;
+    }
+    const tree = data as WorkoutLogTree;
+    tree.sets = (tree.sets ?? []).sort((a, b) => a.order_index - b.order_index);
+    return tree;
+}
+
+export async function saveWorkoutLog(input: WorkoutLogInput): Promise<string> {
+    const { supabase, user } = await checkAuth();
+    await assertTrainerOrManager(supabase, user.id);
+    if (!input.student_id) throw new Error('Aluno é obrigatório');
+
+    const { data, error } = await supabase.rpc('save_workout_log', { payload: input });
+    if (error) {
+        console.error('saveWorkoutLog', error);
+        if (error.message?.includes('Not allowed')) {
+            throw new Error('Você não atende este aluno');
+        }
+        throw new Error('Falha ao salvar o registro de execução');
+    }
+    const logId = data as string;
+    revalidatePath(`/dashboard/trainer/prescricao/alunos/${input.student_id}`);
+    revalidatePath(`/dashboard/trainer/prescricao/alunos/${input.student_id}/execucoes/${logId}`);
+    return logId;
+}
+
+// Cria um log a partir da sessão atribuída (snapshot do prescrito, actuals vazios).
+export async function startWorkoutLog(assignedSessionId: string): Promise<string> {
+    const { supabase } = await checkAuth();
+    const { data: session, error } = await supabase
+        .from('assigned_sessions')
+        .select(`
+            id, name,
+            program:assigned_programs(id, student_id),
+            blocks:assigned_blocks(
+                order_index, phase, category_key,
+                items:assigned_items(
+                    order_index, exercise_name, group_label,
+                    sets:assigned_sets(*)
+                )
+            )
+        `)
+        .eq('id', assignedSessionId)
+        .single();
+
+    if (error || !session) throw new Error('Sessão não encontrada');
+    const s = session as any;
+    const program = Array.isArray(s.program) ? s.program[0] : s.program;
+    if (!program?.student_id) throw new Error('Programa do aluno não encontrado');
+
+    const blocks = [...(s.blocks ?? [])].sort((a: any, b: any) => a.order_index - b.order_index);
+    const sets: SetLogInput[] = [];
+    let order = 0;
+    for (const b of blocks) {
+        const items = [...(b.items ?? [])].sort((a: any, b2: any) => a.order_index - b2.order_index);
+        for (const it of items) {
+            const itSets = [...(it.sets ?? [])].sort((a: any, b3: any) => (a.set_number ?? 0) - (b3.set_number ?? 0));
+            for (const st of itSets) {
+                sets.push({
+                    assigned_set_id: st.id,
+                    exercise_name: it.exercise_name,
+                    group_label: it.group_label,
+                    phase: b.phase,
+                    category_key: b.category_key,
+                    set_number: st.set_number,
+                    planned_reps: st.reps,
+                    planned_reps_max: st.reps_max,
+                    planned_load_kg: st.load_kg,
+                    planned_duration_seconds: st.duration_seconds,
+                    planned_distance_m: st.distance_m,
+                    planned_target_zone: st.target_zone,
+                    completed: false,
+                    order_index: order++,
+                });
+            }
+        }
+    }
+
+    return saveWorkoutLog({
+        student_id: program.student_id,
+        assigned_program_id: program.id,
+        assigned_session_id: s.id,
+        session_name: s.name,
+        sets,
+    });
+}
+
+export async function deleteWorkoutLog(id: string, studentId: string): Promise<void> {
+    const { supabase, user } = await checkAuth();
+    await assertTrainerOrManager(supabase, user.id);
+    const { error } = await supabase.from('workout_logs').delete().eq('id', id);
+    if (error) {
+        console.error('deleteWorkoutLog', error);
+        throw new Error('Falha ao excluir o registro');
+    }
     revalidatePath(`/dashboard/trainer/prescricao/alunos/${studentId}`);
 }
