@@ -1182,3 +1182,69 @@ export interface CreateExerciseInput {
 export interface UpdateExerciseInput extends CreateExerciseInput {
   id: string;
 }
+
+// Program builder DTOs (A2) — input to save_program_tree (migr 045)
+export interface SetInput {
+  set_number?: number;
+  set_type?: string | null;
+  reps?: number | null;
+  reps_max?: number | null;
+  each_side?: boolean;
+  load_kg?: number | null;
+  rir?: number | null;
+  tempo?: string | null;
+  rest_seconds?: number | null;
+  round_number?: number | null;
+  duration_seconds?: number | null;
+  distance_m?: number | null;
+  target_zone?: string | null;
+  notes?: string | null;
+}
+
+export interface ItemInput {
+  id?: string | null;
+  exercise_id?: string | null;
+  custom_name?: string | null;
+  group_label?: string | null;
+  order_index?: number;
+  method_key?: string | null;
+  rounds?: number | null;
+  notes?: string | null;
+  sets: SetInput[];
+}
+
+export interface BlockInput {
+  id?: string | null;
+  phase: WorkoutPhase;
+  category_key: string;
+  order_index?: number;
+  label?: string | null;
+  notes?: string | null;
+  items: ItemInput[];
+}
+
+export interface SessionInput {
+  id?: string | null;
+  name: string;
+  order_index?: number;
+  scheduled_days?: number[];
+  notes?: string | null;
+  blocks: BlockInput[];
+}
+
+export interface ProgramTreeInput {
+  id?: string | null;
+  name: string;
+  description?: string | null;
+  goal?: string | null;
+  sessions: SessionInput[];
+}
+
+// Read: the A0 row interfaces nested into a full tree.
+export interface ProgramTemplateTree extends ProgramTemplate {
+  sessions: (SessionTemplate & {
+    blocks: (BlockTemplate & {
+      items: (ItemTemplate & { sets: SetTemplate[] })[];
+    })[];
+  })[];
+}

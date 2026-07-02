@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getProfile } from '@/app/actions/auth';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Dumbbell, ClipboardList, ChevronRight, Clock } from 'lucide-react';
+import { Dumbbell, ClipboardList, ChevronRight } from 'lucide-react';
 
 export default async function PrescriptionHomePage() {
     const profile = await getProfile();
@@ -38,23 +38,22 @@ export default async function PrescriptionHomePage() {
                     </Card>
                 </Link>
 
-                <Card className="border-dashed opacity-70">
-                    <CardHeader>
-                        <CardTitle className="flex items-center gap-2 text-lg text-zinc-400">
-                            <Dumbbell className="h-5 w-5" />
-                            Programas
-                            <span className="ml-auto inline-flex items-center gap-1 text-xs font-medium text-zinc-400">
-                                <Clock className="h-3.5 w-3.5" />
-                                Em breve
-                            </span>
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <p className="text-sm text-zinc-400">
-                            Montagem de sessões e programas por fases (Exos) chega no próximo marco (A2).
-                        </p>
-                    </CardContent>
-                </Card>
+                <Link href="/dashboard/trainer/prescricao/programas" className="group">
+                    <Card className="transition-colors hover:border-emerald-200 hover:bg-emerald-50/40">
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2 text-lg">
+                                <Dumbbell className="h-5 w-5 text-emerald-600" />
+                                Programas
+                                <ChevronRight className="ml-auto h-4 w-4 text-zinc-300 transition-transform group-hover:translate-x-0.5" />
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <p className="text-sm text-zinc-500">
+                                Monte sessões por fases (Exos) e prescreva programas reutilizáveis.
+                            </p>
+                        </CardContent>
+                    </Card>
+                </Link>
             </div>
         </div>
     );

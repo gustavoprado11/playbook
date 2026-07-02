@@ -6,8 +6,12 @@ import type {
     Exercise,
     MovementPattern,
     BlockCategory,
+    TrainingMethod,
     CreateExerciseInput,
     UpdateExerciseInput,
+    ProgramTemplate,
+    ProgramTemplateTree,
+    ProgramTreeInput,
 } from '@/types/database';
 
 // Helper: ensure user is authenticated
@@ -159,4 +163,116 @@ export async function archiveExercise(id: string): Promise<void> {
     }
 
     revalidatePath('/dashboard/trainer/prescricao/exercicios');
+}
+
+// Métodos de treino p/ o select do builder (preset referenciado por item.method_key).
+export async function getTrainingMethods(): Promise<TrainingMethod[]> {
+    const { supabase } = await checkAuth();
+    const { data, error } = await supabase
+        .from('training_methods')
+        .select('*')
+        .eq('is_active', true)
+        .order('display_order');
+    if (error) {
+        console.error('getTrainingMethods', error);
+        return [];
+    }
+    return (data ?? []) as TrainingMethod[];
+}
+
+// ==========================================
+// PROGRAM TEMPLATES (A2)
+// ==========================================
+
+export async function listProgramTemplates(): Promise<ProgramTemplate[]> {
+    const { supabase } = await checkAuth();
+    // RLS já filtra p/ dono/manager.
+    const { data, error } = await supabase
+        .from('program_templates')
+        .select('*, sessions:session_templates(id)')
+        .eq('is_active', true)
+        .order('name');
+    if (error) {
+        console.error('listProgramTemplates', error);
+        return [];
+    }
+    return (data ?? []) as ProgramTemplate[];
+}
+
+export async function getProgramTemplate(id: string): Promise<ProgramTemplateTree | null> {
+    const { supabase } = await checkAuth();
+    const { data, error } = await supabase
+        .from('program_templates')
+        .select(`
+            *,
+            sessions:session_templates(
+                *,
+                blocks:block_templates(
+                    *,
+                    items:item_templates(
+                        *,
+                        sets:set_templates(*)
+                    )
+                )
+            )
+        `)
+        .eq('id', id)
+        .single();
+
+    if (error || !data) {
+        if (error && error.code !== 'PGRST116') console.error('getProgramTemplate', error);
+        return null;
+    }
+
+    // Ordena a árvore em JS (order_index / set_number) — mais robusto que .order aninhado.
+    const tree = data as ProgramTemplateTree;
+    tree.sessions = (tree.sessions ?? []).sort((a, b) => a.order_index - b.order_index);
+    for (const s of tree.sessions) {
+        s.blocks = (s.blocks ?? []).sort((a, b) => a.order_index - b.order_index);
+        for (const b of s.blocks) {
+            b.items = (b.items ?? []).sort((a, b2) => a.order_index - b2.order_index);
+            for (const it of b.items) {
+                it.sets = (it.sets ?? []).sort((a, b3) => a.set_number - b3.set_number);
+            }
+        }
+    }
+    return tree;
+}
+
+export async function saveProgramTree(input: ProgramTreeInput): Promise<string> {
+    const { supabase, user } = await checkAuth();
+    await assertTrainerOrManager(supabase, user.id);
+
+    if (!input.name?.trim()) throw new Error('Nome do programa é obrigatório');
+
+    const { data, error } = await supabase.rpc('save_program_tree', { payload: input });
+    if (error) {
+        console.error('saveProgramTree', error);
+        if (error.message?.includes('not owned')) {
+            throw new Error('Você não tem permissão para editar este programa');
+        }
+        throw new Error('Falha ao salvar o programa');
+    }
+
+    const programId = data as string;
+    revalidatePath('/dashboard/trainer/prescricao/programas');
+    revalidatePath(`/dashboard/trainer/prescricao/programas/${programId}`);
+    return programId;
+}
+
+export async function deleteProgramTemplate(id: string): Promise<void> {
+    const { supabase, user } = await checkAuth();
+    await assertTrainerOrManager(supabase, user.id);
+
+    const { error } = await supabase
+        .from('program_templates')
+        .update({ is_active: false })
+        .eq('id', id);
+
+    if (error) {
+        console.error('deleteProgramTemplate', error);
+        throw new Error('Falha ao arquivar o programa');
+    }
+
+    revalidatePath('/dashboard/trainer/prescricao/programas');
 }
