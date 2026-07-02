@@ -34,8 +34,9 @@ import {
 } from '../programas/program-builder';
 import type {
     Exercise, MovementPattern, BlockCategory, TrainingMethod, WorkoutPhase,
-    AssignedProgramTree, AssignedProgramTreeInput,
+    AssignedProgramTree, AssignedProgramTreeInput, StudentClearance,
 } from '@/types/database';
+import { ClearanceBanner } from '@/components/clearances/clearance-banner';
 
 // ---------- draft model (item carrega SNAPSHOT) ----------
 interface ADraftItem {
@@ -70,9 +71,10 @@ interface AssignedBuilderProps {
     patterns: MovementPattern[];
     categories: BlockCategory[];
     methods: TrainingMethod[];
+    clearances: StudentClearance[];
 }
 
-export function AssignedBuilder({ initial, studentName, exercises, patterns, categories, methods }: AssignedBuilderProps) {
+export function AssignedBuilder({ initial, studentName, exercises, patterns, categories, methods, clearances }: AssignedBuilderProps) {
     const router = useRouter();
     const idRef = useRef(0);
     const mkKey = () => `k${idRef.current++}`;
@@ -316,6 +318,8 @@ export function AssignedBuilder({ initial, studentName, exercises, patterns, cat
                     </Button>
                 </div>
             </div>
+
+            <ClearanceBanner clearances={clearances} />
 
             <Card>
                 <CardContent className="space-y-4 pt-6">

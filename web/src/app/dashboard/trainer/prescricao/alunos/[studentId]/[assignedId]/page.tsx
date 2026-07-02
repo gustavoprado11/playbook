@@ -4,6 +4,7 @@ import { getProfile } from '@/app/actions/auth';
 import {
     getAssignedProgram, getExercises, getCatalogTaxonomy, getTrainingMethods,
 } from '@/app/actions/prescription';
+import { getActiveClearances } from '@/app/actions/clearances';
 import { AssignedBuilder } from '../../assigned-builder';
 
 export default async function AssignedProgramEditorPage({
@@ -18,11 +19,12 @@ export default async function AssignedProgramEditorPage({
         redirect('/dashboard');
     }
 
-    const [tree, exercises, taxonomy, methods] = await Promise.all([
+    const [tree, exercises, taxonomy, methods, clearances] = await Promise.all([
         getAssignedProgram(assignedId),
         getExercises(),
         getCatalogTaxonomy(),
         getTrainingMethods(),
+        getActiveClearances(studentId),
     ]);
 
     if (!tree || tree.student_id !== studentId) notFound();
@@ -42,6 +44,7 @@ export default async function AssignedProgramEditorPage({
             patterns={taxonomy.patterns}
             categories={taxonomy.categories}
             methods={methods}
+            clearances={clearances}
         />
     );
 }

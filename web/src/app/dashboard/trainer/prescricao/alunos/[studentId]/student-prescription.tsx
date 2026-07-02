@@ -23,7 +23,8 @@ import {
 import { ArrowLeft, Plus, MoreVertical, Pencil, Archive, Search, ClipboardList, Activity, ChevronRight } from 'lucide-react';
 import { toast } from 'sonner';
 import { assignProgramTemplate, archiveAssignedProgram, startWorkoutLog } from '@/app/actions/prescription';
-import type { AssignedProgram, ProgramTemplate, WorkoutLog, StudentSessionForLog } from '@/types/database';
+import { ClearanceBanner } from '@/components/clearances/clearance-banner';
+import type { AssignedProgram, ProgramTemplate, WorkoutLog, StudentSessionForLog, StudentClearance } from '@/types/database';
 
 function formatLogDate(d: string) {
     if (!d) return '-';
@@ -38,9 +39,10 @@ interface StudentPrescriptionProps {
     templates: ProgramTemplate[];
     logs: WorkoutLog[];
     sessionsForLog: StudentSessionForLog[];
+    clearances: StudentClearance[];
 }
 
-export function StudentPrescription({ studentId, studentName, assignments, templates, logs, sessionsForLog }: StudentPrescriptionProps) {
+export function StudentPrescription({ studentId, studentName, assignments, templates, logs, sessionsForLog, clearances }: StudentPrescriptionProps) {
     const router = useRouter();
     const [assignOpen, setAssignOpen] = useState(false);
     const [search, setSearch] = useState('');
@@ -122,6 +124,8 @@ export function StudentPrescription({ studentId, studentName, assignments, templ
                     </Button>
                 </div>
             </div>
+
+            <ClearanceBanner clearances={clearances} />
 
             <Card>
                 <CardHeader>

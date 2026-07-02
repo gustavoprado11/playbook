@@ -7,6 +7,7 @@ import {
     listWorkoutLogs,
     getStudentSessionsForLog,
 } from '@/app/actions/prescription';
+import { getActiveClearances } from '@/app/actions/clearances';
 import { StudentPrescription } from './student-prescription';
 
 export default async function StudentPrescriptionPage({ params }: { params: Promise<{ studentId: string }> }) {
@@ -26,11 +27,12 @@ export default async function StudentPrescriptionPage({ params }: { params: Prom
 
     if (!student) notFound();
 
-    const [assignments, templates, logs, sessionsForLog] = await Promise.all([
+    const [assignments, templates, logs, sessionsForLog, clearances] = await Promise.all([
         listStudentAssignments(studentId),
         listProgramTemplates(),
         listWorkoutLogs(studentId),
         getStudentSessionsForLog(studentId),
+        getActiveClearances(studentId),
     ]);
 
     return (
@@ -41,6 +43,7 @@ export default async function StudentPrescriptionPage({ params }: { params: Prom
             templates={templates}
             logs={logs}
             sessionsForLog={sessionsForLog}
+            clearances={clearances}
         />
     );
 }
