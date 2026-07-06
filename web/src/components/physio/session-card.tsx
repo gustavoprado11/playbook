@@ -3,7 +3,7 @@
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { PainIndicator } from './pain-scale';
-import { ChevronDown, ChevronUp } from 'lucide-react';
+import { ChevronDown, ChevronUp, Pencil } from 'lucide-react';
 import { useState } from 'react';
 import type { PhysioSession } from '@/types/database';
 
@@ -29,7 +29,7 @@ export function SessionTypeBadge({ type }: { type: string }) {
     );
 }
 
-export function SessionCard({ session }: { session: PhysioSession }) {
+export function SessionCard({ session, onEdit }: { session: PhysioSession; onEdit?: () => void }) {
     const [expanded, setExpanded] = useState(false);
     const evolution = Array.isArray(session.evolution) ? session.evolution[0] : session.evolution;
     const anamnesis = Array.isArray(session.anamnesis) ? session.anamnesis[0] : session.anamnesis;
@@ -52,6 +52,17 @@ export function SessionCard({ session }: { session: PhysioSession }) {
                         before={evolution?.pain_before ?? null}
                         after={evolution?.pain_after ?? null}
                     />
+                    {onEdit && (
+                        <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); onEdit(); }}
+                            className="text-zinc-400 transition-colors hover:text-emerald-600"
+                            title="Editar sessão"
+                            aria-label="Editar sessão"
+                        >
+                            <Pencil className="h-4 w-4" />
+                        </button>
+                    )}
                     {expanded ? (
                         <ChevronUp className="h-4 w-4 text-zinc-400" />
                     ) : (

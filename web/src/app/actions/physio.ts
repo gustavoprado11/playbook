@@ -90,18 +90,31 @@ export async function getPhysioSessionCounts(studentId: string): Promise<PhysioS
     if (!auth) return empty;
 
     const { supabase, professionalId } = auth;
-    // Conta presenças por tipo de atendimento na agenda de fisio do profissional.
-    const { data } = await supabase
+    const counts = { ...empty };
+
+    // (1) Presenças marcadas na AGENDA de fisio do profissional.
+    const { data: agenda } = await supabase
         .from('physio_schedule_week_entries')
         .select('session_type, slot:physio_schedule_week_slots!inner(professional_id)')
         .eq('student_id', studentId)
         .eq('status', 'present')
         .eq('slot.professional_id', professionalId);
-
-    const counts = { ...empty };
-    for (const row of (data || []) as { session_type: keyof PhysioSessionCounts }[]) {
+    for (const row of (agenda || []) as { session_type: keyof PhysioSessionCounts }[]) {
         if (row.session_type in counts) counts[row.session_type] += 1;
     }
+
+    // (2) Sessões clínicas registradas em "Sessões" — contam mesmo SEM agendamento na agenda.
+    // Avaliação inicial/reavaliação → Avaliações; tratamento/alta → Sessões.
+    const { data: sessions } = await supabase
+        .from('physio_sessions')
+        .select('session_type')
+        .eq('student_id', studentId)
+        .eq('professional_id', professionalId);
+    for (const row of (sessions || []) as { session_type: string }[]) {
+        if (row.session_type === 'initial_assessment' || row.session_type === 'reassessment') counts.avaliacao += 1;
+        else if (row.session_type === 'treatment' || row.session_type === 'discharge') counts.sessao += 1;
+    }
+
     return counts;
 }
 
